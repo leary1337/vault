@@ -1,57 +1,32 @@
 ---
-title: "ARP"
-tags:
-  - networking
+title: ARP
+description: IPv4 neighbor resolution, cache states, gratuitous ARP и trust risks.
+tags: [networking, arp]
 created: 2024-07-23
+updated: 2026-09-10
 ---
 
 # ARP
 
-### Описание
+ARP сопоставляет IPv4 protocol address с link-layer address на local link, обычно IPv4→Ethernet MAC. Для remote destination host разрешает MAC next-hop router-а, а не конечного server-а. IPv6 использует Neighbor Discovery через ICMPv6, не ARP.
 
-**ARP (Address Resolution Protocol)** — это протокол, используемый для сопоставления [IP-адресов](ip-addressing.md) с MAC-адресами в локальной сети. Это необходимо, поскольку IP-адреса используются на сетевом уровне, а MAC-адреса — на канальном уровне (например, в Ethernet или Wi-Fi).
+## Resolution
 
-#### Основные функции ARP:
-- **Определение MAC-адреса по IP-адресу**:
-    - Например, команда `ping 192.168.10.43` или `ssh server.university.org` требует определения MAC-адреса для доставки пакетов по сети.
-- **Работа протокола**:
-    - ARP работает в режиме запрос-ответ, где одно устройство (отправитель) запрашивает MAC-адрес другого устройства, используя его IP-адрес.
+Sender определяет, что next hop on-link, и отправляет broadcast ARP Request «кто имеет target IP». Owner отвечает ARP Reply, обычно unicast. Kernel сохраняет neighbor entry и меняет state по reachability/aging policy; конкретные timers implementation-specific.
 
-#### Процесс получения MAC-адреса по IP-адресу
-#### Формат ARP-запроса:
+```text
+application destination -> route -> next-hop IPv4 -> neighbor cache -> link address
+```
 
-|Поле|Значение|
-|---|---|
-|Тип сети|1 (Ethernet)|
-|Тип протокола|2048 (IPv4)|
-|Длина локального адреса|6 (байт)|
-|Длина глобального адреса|4 (байт)|
-|Операция|1 (запрос)|
-|Локальный адрес отправителя|1C:75:08:D2:49:45|
-|Глобальный адрес отправителя|192.168.10.15|
-|Локальный адрес получателя|00:00:00:00:00:00|
-|Глобальный адрес получателя|192.168.10.43|
-#### ARP-таблица
+Gratuitous ARP объявляет собственное mapping без обычного запроса: применяется при address conflict detection/update neighbor caches/failover, но доставка и acceptance зависят от network devices/policy.
 
-Компьютеры в сети хранят соответствие MAC- и IP-адресов в ARP-таблице (кэше), что позволяет избегать постоянных запросов ARP. Таблица обновляется по мере необходимости.
+## Failure и security
 
-- **Команда для просмотра таблицы**: `arp -a`
+Failed resolution выглядит как connect timeout/unreachable ещё до TCP. Проверяйте route/interface/VLAN, neighbor state, packet capture и duplicate IP. Команды: `ip neigh` (Linux), `arp -a` как legacy view.
 
-Пример ARP-таблицы:
+Classic ARP не аутентифицирует mapping; poisoning может перенаправить traffic. Segment isolation, switch controls и cryptographic upper layers (TLS) уменьшают impact; статические entries плохо масштабируются и тоже требуют lifecycle.
 
-| IP-адрес      | MAC-адрес         | Тип          |
-| ------------- | ----------------- | ------------ |
-| 172.16.10.253 | 00:1C:C5:34:B3:01 | Динамический |
-| 172.16.10.88  | 1C:75:08:D2:49:45 | Статический  |
-#### Оптимизации ARP
+## Источники
 
-- **Извлечение информации из ARP-запроса**:
-    
-    - Запросы отправляются на широковещательный адрес, и все устройства в сети могут извлечь и сохранить IP и MAC-адрес отправителя.
-- **Добровольный ARP-запрос (Gratuitous ARP)**:
-    
-    - Устройство отправляет запрос для своего IP-адреса, чтобы уведомить другие устройства в сети о своем присутствии. Это полезно при изменении IP-адреса или предотвращении конфликта IP-адресов.
-
-### Краткое содержание
-
-**ARP (Address Resolution Protocol)** — протокол разрешения адресов, используемый для сопоставления [IP-адресов](ip-addressing.md) с MAC-адресами в локальных сетях. Это ключевой элемент, обеспечивающий работу сети на канальном уровне.
+- [ARP, RFC 826](https://www.rfc-editor.org/rfc/rfc826)
+- [IPv6 Neighbor Discovery, RFC 4861](https://www.rfc-editor.org/rfc/rfc4861)

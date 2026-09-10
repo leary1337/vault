@@ -38,7 +38,7 @@ Effectively-once — архитектурный результат: transport д
 - atomicity dedup marker с business change;
 - определённая политика поздних/переупорядоченных events.
 
-Тестируйте crash в каждой точке между read, side effect, publish и commit; happy path не доказывает semantics.
+Тестируйте crash в каждой точке между read, side effect, publish и commit; happy path не доказывает semantics. Для внешних effects продолжите с [idempotency](../../backend-patterns/idempotency.md), [Transactional Outbox](../../backend-patterns/transactional-outbox.md) и [Inbox/deduplication](../inbox-pattern.md).
 
 ## Источники
 

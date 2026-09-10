@@ -1,178 +1,60 @@
 ---
-title: "Struct в Go"
-tags:
-  - go
+title: Struct в Go
+description: Struct values, comparability, embedding, tags и layout.
+tags: [go, data-structures]
 created: 2024-07-30
+updated: 2026-09-10
 ---
 
 # Struct в Go
 
-### Описание
+Struct — sequence именованных fields. Его zero value состоит из zero values полей; это позволяет проектировать types, полезные без constructor-а. Struct value копируется целиком при assignment/argument/return, хотя поля pointers, slices и maps продолжают ссылаться на общие данные.
 
-**Структура (struct)** в Go — это пользовательский тип данных, объединяющий значения различных типов в один объект. Структура описывается набором полей, каждое из которых имеет свое имя и тип. Размер памяти пустой структуры составляет 0 байт.
-
-```go
-type Person struct {
-    Name string
-    Age  int
-}
-
-func main() {
-	p := Person{"Alice", 30} // {Alice 30}  
-	p := Person{Name: "Alice", Age: 30} // {Alice 30}  
-	p := Person{Name: "Alice"} // {Alice 0}  
-	  
-	p := new(Person) // &{"" 0}  
-	p := &Person{} // &{"" 0}  
-	  
-	var p Person // {"" 0}
-}
-```
-
-Если переменная типа структуры не была явно инициализирована, она по умолчанию получает *zero value*.
-#### Инкапсуляция в Go
-
-Инкапсуляция в Go достигается через механизм видимости полей и методов. Поля и методы, начинающиеся с заглавной буквы, являются экспортируемыми и доступны из других пакетов. Поля и методы, начинающиеся со строчной буквы, не экспортируются и доступны только внутри того же пакета.
-
-Пример инкапсуляции:
-```go
-type Person struct {
-    Name string
-    age  int // неэкспортируемое поле
-}
-
-func (p *Person) SetAge(age int) {
-    p.age = age
-}
-
-func (p *Person) GetAge() int {
-    return p.age
-}
-```
-#### Value и Pointer Receivers
-
-В Go методы могут принимать структуру как **value receiver** или **pointer receiver**:
-
-**Value Receiver**:
-
-- Метод получает копию структуры. Изменения в методе **не затрагивают** оригинальную структуру.
-- Подходит для методов, которые не изменяют структуру или когда структура небольшого размера.
+## Declaration и literals
 
 ```go
-func (p Person) Greet() string {
-    return "Hello, " + p.Name
-}
-```
-
-**Pointer Receiver**:
-
-- Метод получает указатель на структуру, что позволяет **изменять** её состояние.
-- Рекомендуется для методов, изменяющих структуру, и для структур большого размера, чтобы избежать копирования данных.
-
-```go
-func (p *Person) Rename(newName string) {
-    p.Name = newName
-}
-```
-
-#### Встраивание (Embedding) и отличие от наследования
-
-**Встраивание (embedding)** в Go — это механизм, который позволяет одной структуре включать другую структуру или интерфейс в качестве анонимного поля. Это отличается от традиционного наследования в том, что Go не поддерживает наследование, как в объектно-ориентированных языках, таких как Java или C++. В Go отсутствуют классы и механизм наследования, а композиция и встраивание служат для достижения похожих целей.
-
-Пример встраивания:
-```go
-type Animal struct {
+type User struct {
+    ID   int64
     Name string
 }
 
-type Dog struct {
-    Animal // Встраивание структуры Animal
-    Breed  string
-}
+u := User{ID: 42, Name: "Ada"}
 ```
 
-В этом примере `Dog` включает в себя `Animal`, и при этом можно обращаться к полям `Animal` напрямую через `Dog`, например:
-```go
-d := Dog{
-    Animal: Animal{Name: "Buddy"},
-    Breed:  "Golden Retriever",
-}
-fmt.Println(d.Name) // Вывод: Buddy
-```
-#### Передача в функции
+В package boundary предпочитайте keyed literals: добавление/reorder field не меняет смысл. Unkeyed literals external struct запрещает `go vet` для многих случаев и связывает caller с layout полей.
 
-Структуры могут передаваться в функции по значению или по указателю.
+## Comparability
 
-**Передача по значению**:
+Struct comparable, только если comparable все его fields. Тогда `==` сравнивает поля по порядку и type можно использовать как map key. Наличие slice, map или function делает struct non-comparable. Для semantic equality (например, игнорировать cache/time metadata) реализуйте named method/function, а не полагайтесь на raw `==`.
 
-- Создается копия структуры. Изменения внутри функции **не затрагивают** оригинальную структуру.
-- Может привести к ошибкам, если предполагается, что изменения должны быть видны за пределами функции.
+## Methods и pointer receivers
+
+Value receiver получает копию struct; pointer receiver может менять original и избегает копирования крупного value. Выбор влияет на method set/interface implementation. Не копируйте после первого использования types с `sync.Mutex` и другой no-copy state; `go vet copylocks` помогает находить такие случаи.
+
+## Embedding
+
+Anonymous field promotes fields/methods для selector convenience, но это не inheritance. Embedded type остаётся отдельным field; promoted method может быть shadowed, а interface satisfaction зависит от method sets value/pointer. Embedding публичного foreign type раскрывает его methods как часть API — используйте осознанно.
+
+## Tags
+
+Tag — string metadata доступная через reflection. Convention конкретной library определяет смысл (`json`, validation, DB mapper). Tag участвует в type identity (с оговорками assignability) и должен быть syntactically корректным; `go vet` проверяет распространённые ошибки.
 
 ```go
-func UpdateName(p Person, newName string) {
-    p.Name = newName
-}
-
-p := Person{Name: "Alice"}
-UpdateName(p, "Bob")
-fmt.Println(p.Name) // Вывод: Alice
-```
-
-**Передача по указателю**:
-
-- Функция получает указатель на оригинальную структуру, что позволяет изменять её состояние.
-- Рекомендуется использовать для больших структур или если нужно изменять данные.
-
-```go
-func UpdateName(p *Person, newName string) {
-    p.Name = newName
-}
-
-p := Person{Name: "Alice"}
-UpdateName(&p, "Bob")
-fmt.Println(p.Name) // Вывод: Bob
-```
-#### Внутреннее устройство
-
-Под капотом, структура в Go является последовательностью данных в памяти, где каждое поле имеет свое смещение (`offset`). Поля структуры *выравниваются в памяти* в зависимости от их типов, что помогает оптимизировать доступ к данным и минимизировать неиспользуемое пространство (paddings).
-#### Выравнивание типов (type alignment)
-
-**Выравнивание типов** — это процесс размещения данных в памяти таким образом, чтобы каждый элемент данных находился на "естественной границе" (alignment boundary). В контексте структур в Go, выравнивание гарантирует, что поля структур располагаются на адресах, кратных их размеру, что оптимизирует доступ к данным.
-
-**Адрес 2-байтового типа(_int16_) должен быть кратен 2, адрес 4-байтового значения(_int32_) должен быть кратен 4, а 8-байтового соответственно кратен 8.**
-
-**Почему важно выравнивание?**
-
-1. **Производительность**: Современные процессоры лучше работают с данными, выровненными по определенным границам. Невыравненные данные могут потребовать дополнительных операций чтения/записи, что замедляет доступ к памяти.
-2. **Корректность работы**: Некоторые процессоры могут не поддерживать невыравненные операции доступа к памяти, что может привести к аварийным завершениям программ.
-
-**Выравнивание полей структур:**
-
-Компилятор Go добавляет паддинги (*padding*) для выравнивания данных. Паддинг — это дополнительные байты, которые вставляются в структуру для того, чтобы поля данных начинались с выровненных адресов памяти, что важно для производительности процессора.
-
-**Оптимизация паддингов:**
-
-![](https://i.imgur.com/fOOK5M5.gif)
-
-*Порядок полей имеет значение, благодаря нему можно сократить размер структуры в памяти*
-
-```go
-type StructA struct { // 32 bytes
-  A byte
-  B int32
-  C byte
-  D int64
-  E byte
-}
-
-type StructB struct { // 16 bytes
-  B int32
-  A byte
-  C byte
-  E byte
-  D int64
+type Request struct {
+    Name string `json:"name"`
 }
 ```
-### Краткое содержание
 
-**Структура (struct)** в Go — это пользовательский тип данных, объединяющий значения различных типов в один объект. Структура описывается набором полей, каждое из которых имеет свое имя и тип. Размер памяти пустой структуры составляет 0 байт.
+Unexported fields обычно недоступны encoder-у другого package. Не используйте tags как единственную security authorization policy: mass assignment/field exposure контролируются explicit DTO и mapping.
+
+## Layout и alignment
+
+Compiler вставляет padding, чтобы удовлетворить alignment полей; точный layout зависит от types и target architecture. `unsafe.Sizeof`, `Alignof` и `Offsetof` дают compile-time values для конкретного build. Field reordering иногда экономит память при миллионах objects, но может ухудшить readability/cache access; измеряйте.
+
+Нельзя сериализовать raw struct memory как portable wire/storage format: padding, endianness, pointers и layout не являются стабильным межпроцессным contract. Используйте explicit encoding.
+
+## Источники
+
+- [Go specification: struct types](https://go.dev/ref/spec#Struct_types)
+- [Go specification: comparison operators](https://go.dev/ref/spec#Comparison_operators)
+- [`unsafe` package](https://pkg.go.dev/unsafe)

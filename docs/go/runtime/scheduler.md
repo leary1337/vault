@@ -45,7 +45,7 @@ Runtime умеет preempt long-running goroutines, чтобы GC и други�
 
 С Go 1.25 на Linux default учитывает доступные logical CPUs, CPU affinity и cgroup CPU bandwidth limit; runtime периодически обновляет значение при изменении environment. CPU requests Kubernetes не учитываются. Явный `GOMAXPROCS` environment variable или вызов `runtime.GOMAXPROCS` отключает автоматический default/update behavior.
 
-Это уменьшает риск, когда process на большой node считает доступными все CPUs, но container имеет малую quota и регулярно попадает под CPU throttling. Однако выставлять или не выставлять CPU limit — отдельный infrastructure trade-off; следите за throttled time, run queue, latency и utilization.
+Это уменьшает риск, когда process на большой node считает доступными все CPUs, но container имеет малую quota и регулярно попадает под CPU throttling. Однако выставлять или не выставлять CPU limit — отдельный infrastructure trade-off; следите за throttled time, run queue, latency и utilization. Связанные уровни: [cgroups v2](../../linux/cgroups.md) и [Kubernetes resources](../../containers/kubernetes/resources.md).
 
 ## Диагностика
 

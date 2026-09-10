@@ -1,8 +1,10 @@
 ---
 title: "Функции"
+description: Functions, multiple returns, variadic calls и first-class values в Go.
 tags:
   - go
 created: 2024-07-24
+updated: 2026-09-10
 ---
 
 # Функции

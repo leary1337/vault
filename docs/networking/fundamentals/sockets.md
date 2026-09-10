@@ -1,43 +1,36 @@
 ---
-title: "Сокет"
-tags:
-  - networking
+title: Sockets
+description: Endpoint API, listen/accept/connect, blocking modes, buffers и lifecycle.
+tags: [networking, sockets, linux]
 created: 2024-07-23
+updated: 2026-09-10
 ---
 
-# Сокет
+# Sockets
 
-### Описание
+Socket — kernel-managed communication endpoint, представленный file descriptor на Unix-like systems. Это не обычный filesystem file: похожими являются descriptor API/readiness/lifecycle, а semantics задают address family, type и protocol.
 
-Сокеты впервые появились в ОС Berkeley UNIX 4.2 BSD (1983 г.)
-- Сокет в UNIX — файл специального вида
-- Всё, что записывается в файл, передаётся по сети
-- Передача данных по сети скрыта от программиста
+## TCP server/client
 
-Сокеты — де-факто стандарт [интерфейсов](terminology.md) для транспортной подсистемы
-- Различные варианты сокетов реализованы в разных ОС и языках программирования
+Server: `socket` → `bind` → `listen` → повторный `accept`; каждый accepted socket представляет отдельную connection. Client вызывает `connect`. `listen` socket не переносит application data accepted connection.
 
-#### Операции сокетов Беркли
+Backlog и accept rate ограничены; SYN/accept queues и exact Linux behavior зависят от kernel settings. Один listening port поддерживает множество connections, различаемых endpoint tuples.
 
-| Операция | Назначение                              |
-| -------- | --------------------------------------- |
-| Socket   | Создать новый сокет                     |
-| Bind     | Связать сокет с IP-адресом и портом     |
-| Listen   | Объявить о желании принимать соединения |
-| Accept   | Принять запрос на установку соединения  |
-| Connect  | Установить соединение                   |
-| Send     | Отправить данные по сети                |
-| Receive  | Получить данные из сети                 |
-| Close    | Закрыть соединение                      |
-#### Модель клиент-сервер
+UDP обычно использует `sendto`/`recvfrom`; `connect` для UDP задаёт default peer/filtering и error association, но не выполняет TCP handshake и не создаёт reliable stream.
 
-**Взаимодействующие стороны сокетов Беркли:**
-- Сервер
-- Клиент
+## I/O semantics
 
-**Сервер** – работает (слушает) на известном [IP-адресе](ip-addressing.md) и порту и пассивно ждет запросов на соединение.
+Blocking `read` ждёт data/EOF/error/deadline; nonblocking возвращает `EAGAIN` и используется readiness poller-ом. Partial read/write нормальны. TCP read не совпадает с peer write boundaries; application protocol обязан framing.
 
-**Клиент** – активно устанавливает соединение с сервером на заданном IP и порту.
-#### Работа сокетов
-### Краткое содержание
-Сокеты — это интерфейс для транспортного уровня, скрывающий детали протоколов передачи данных. Они появились в UNIX 4.2 BSD в 1983 году и используются для сетевого взаимодействия. Модель клиент-сервер включает сервер, который слушает на известном IP и порту, и клиента, который инициирует соединение. Сокеты позволяют легко обновлять программы при изменении протоколов транспортного уровня.
+Socket buffers ограничены. Успешный `write` обычно означает copy/acceptance local kernel-ом, не получение или business commit peer-а. Half-close (`shutdown`) закрывает направление отдельно; `close` освобождает descriptor, но TCP может продолжить protocol cleanup.
+
+## Lifecycle
+
+Всегда закрывайте socket/accepted connection на error paths и ставьте close-on-exec атомарно. Deadlines защищают goroutines/resources; TCP keepalive/heartbeat не заменяет operation timeout. Наблюдайте open FDs, accept/connect errors, states, buffer/queue drops и pool hold time.
+
+Go `net` интегрирует поддерживаемые sockets с runtime poller, поэтому blocked goroutine обычно не требует отдельного OS thread. См. [netpoller](../../go/runtime/netpoller.md), [epoll](../../linux/epoll.md) и [connection lifecycle](../backend/connection-lifecycle.md).
+
+## Источники
+
+- [Linux socket(7)](https://man7.org/linux/man-pages/man7/socket.7.html)
+- [Linux tcp(7)](https://man7.org/linux/man-pages/man7/tcp.7.html)

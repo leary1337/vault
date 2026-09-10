@@ -1,51 +1,34 @@
 ---
-title: "IP"
-tags:
-  - networking
+title: Internet Protocol
+description: Best-effort datagrams, forwarding, TTL/Hop Limit, MTU и fragmentation.
+tags: [networking, ip]
 created: 2024-07-23
+updated: 2026-09-10
 ---
 
-# IP
+# Internet Protocol
 
-### Описание
+IP переносит datagrams между network interfaces через routers. Service best-effort: protocol не гарантирует delivery, ordering, duplicate suppression или congestion control. Эти свойства при необходимости добавляет transport/application.
 
-**IP (Internet Protocol)** — это межсетевой протокол сетевого уровня, который используется для объединения сетей, построенных с использованием различных технологий канального уровня. Он обеспечивает универсальный метод адресации и маршрутизации пакетов данных через гетерогенные сети, включая глобальную сеть Интернет.
+## Forwarding
 
-- **internetworking**: процесс объединения различных сетей.
-- **internet**: объединенная сеть или подсеть.
-- **Internet**: название самой крупной глобальной объединенной сети.
+Host выбирает route по destination prefix (обычно longest-prefix match) и next hop/interface. Каждый router уменьшает IPv4 TTL или IPv6 Hop Limit; при zero packet отбрасывается и обычно формируется ICMP Time Exceeded. TTL — hop bound, не время в секундах для application.
 
-#### Сервисы, предоставляемые IP:
+IPv4 header содержит source/destination, protocol, TTL, length, fragmentation и checksum header-а. IPv6 имеет fixed base header + extension headers и не имеет header checksum; next-header chain указывает transport/extensions.
 
-- **Передача данных**:
-    - Без гарантии доставки: IP не гарантирует, что пакет достигнет адресата.
-    - Без сохранения порядка следования сообщений: пакеты могут приходить в произвольном порядке.
-- **Передача данных без установки соединения**: IP работает по принципу «best effort», не требуя установления соединения перед передачей данных.
+## MTU и fragmentation
 
-#### Основные задачи IP:
+IPv4 router может fragment packet, если DF не установлен, но современный transport старается избегать fragmentation. В IPv6 routers не fragment; source использует Fragment header. Path MTU Discovery опирается на ICMP feedback; фильтрация нужного ICMP создаёт black-hole behavior.
 
-- **Объединение сетей**: Обеспечение связности между различными сетями.
-- **Маршрутизация**: Определение пути для передачи пакетов к целевому устройству.
-- **Качество обслуживания (QoS)**: Управление приоритетом передачи данных и оптимизация использования сетевых ресурсов.
+Для TCP segmentation/offload complicates packet capture: application write, TCP segment и captured frame не обязаны совпадать. Для UDP application должен ограничить datagram/использовать protocol segmentation.
 
-#### Формат заголовка IP-пакета
+## Security и identity
 
-- **Версия IP**:
-    - **IPv4**: Длина [IP-адреса](ip-addressing.md) составляет 4 байта. Существует нехватка адресов, что привело к необходимости перехода на IPv6. IPv4 все еще активно используется.
-    - **IPv6**: Длина [IP-адреса](ip-addressing.md) составляет 16 байт. Введение IPv6 направлено на решение проблемы нехватки IP-адресов и улучшение функциональности.
-    
-- **Общая длина**: Общая длина IP-пакета, включая заголовок и данные. Измеряется в байтах, максимальное значение — 65535 байт. На практике длина часто ограничена размером кадра канального уровня (например, 1500 байт для Ethernet).
-    
-- **Время жизни (TTL, Time To Live)**: Устанавливает максимальное количество времени или число маршрутизаторов (hop), через которые пакет может пройти. Это предотвращает бесконечное циркулирование пакетов в сети.
-    
-- **Тип протокола**: Поле, указывающее, какой протокол транспортного уровня используется:
-    - [TCP](../transport/tcp.md) — 6
-    - [UDP](../transport/udp.md) — 17
-    - [ICMP](icmp.md) — 1
-- **Опции**: Дополнительные поля в заголовке IP-пакета для специальных задач:
-    - Запись маршрута, временные метки и другие.
-    - Заголовок должен быть кратен 32 битам, поэтому поле опций может быть дополнено нулями для выравнивания.
+Source IP может быть spoofed (особенно connectionless traffic) или адресом proxy/NAT. Не используйте его как authentication. Filtering/routing policies работают только в своей trust boundary; forwarding headers очищает trusted edge.
 
-### Краткое содержание
+Продолжение: [IP addressing](ip-addressing.md), [ICMP](icmp.md), [TCP](../transport/tcp.md) и [UDP](../transport/udp.md).
 
-**IP (Internet Protocol)** — это межсетевой протокол сетевого уровня, используемый для объединения сетей, построенных с использованием различных технологий канального уровня. Основные версии: IPv4 и IPv6.
+## Источники
+
+- [IPv4, RFC 791](https://www.rfc-editor.org/rfc/rfc791)
+- [IPv6, RFC 8200](https://www.rfc-editor.org/rfc/rfc8200)

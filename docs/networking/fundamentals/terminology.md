@@ -1,8 +1,10 @@
 ---
 title: "Терминология"
+description: Базовые определения host, link, packet, route и network topology.
 tags:
   - networking
 created: 2024-07-22
+updated: 2026-09-10
 ---
 
 # Терминология

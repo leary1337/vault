@@ -1,699 +1,101 @@
 ---
-title: "Паттерны многопоточности"
-tags:
-  - go
+title: Паттерны конкурентности
+description: Pipelines, fan-out/fan-in, worker pools и bounded lifecycle в Go.
+tags: [go, concurrency, patterns]
 created: 2024-07-27
+updated: 2026-09-10
 ---
 
-# Паттерны многопоточности
+# Паттерны конкурентности
 
-### Порождающие паттерны
+Concurrency pattern полезен, когда явно задаёт ownership, bounds, cancellation и error propagation. Схема channels без этих свойств лишь переносит leak/deadlock в production.
 
-Порождающие паттерны — это набор паттернов, которые проводят данные через несколько этапов выполнения последовательно с возможной модификацией данных.
-#### Generator
+## Pipeline
 
-**Генератор** — это паттерн, используемый в программировании для создания упорядоченной последовательности значений, которая может быть потенциально бесконечной. В контексте языка Golang, генератор представляет собой функцию, которая возвращает канал, через который можно передавать значения. Такой канал обычно доступен для чтения снаружи и может быть буферизированным (с ограниченным размером буфера) или небуферизированным.
-
-Генератор может быть использован, например:
-- для последовательной генерации чисел
-- потоков данных
-- сообщений.
-
-В реальных приложениях, это может быть полезно для обработки очередей сообщений, выполнения операций в цикле или генерации потоков данных, поступающих из внешних источников (например, от веб-браузера или брокера сообщений).
+Stage читает input, преобразует values и закрывает свой output после завершения. Downstream early exit обязан отменить upstream, иначе producer навсегда блокируется на send.
 
 ```go
-func main() {  
-    done := make(chan struct{})  
-    wg := sync.WaitGroup{}  
-    wg.Add(2)  
-  
-    ch := makeGenerator(done, &wg)  
-  
-    go func() {  
-       defer wg.Done()  
-       for v := range ch {  
-          fmt.Println("value:", v)  
-       }  
-    }()  
-  
-    time.Sleep(1 * time.Second)  
-    close(done)  
-    wg.Wait()  
-}  
-  
-func makeGenerator(done <-chan struct{}, wg *sync.WaitGroup) <-chan int {  
-    ch := make(chan int, 1)  
-    i := 0  
-  
-    go func() {  
-       defer wg.Done()  
-       for {  
-          select {  
-          case <-done:  
-             close(ch)  
-             fmt.Println("Done")  
-             return  
-          default:  
-             time.Sleep(time.Millisecond * 250)  
-             ch <- i  
-             i++  
-          }  
-       }  
-    }()  
-    return ch  
+func mapStage(ctx context.Context, in <-chan int) <-chan int {
+    out := make(chan int)
+    go func() {
+        defer close(out)
+        for v := range in {
+            select {
+            case out <- v * v:
+            case <-ctx.Done():
+                return
+            }
+        }
+    }()
+    return out
 }
 ```
-#### Fan-In (merge)
 
-**Fan-in** — это паттерн в конкурентном программировании, который объединяет несколько входных каналов в один выходной канал. Этот паттерн позволяет собирать данные из разных источников (каналов) и направлять их в один общий поток, что упрощает их дальнейшую обработку.
+Буфер сглаживает ограниченный burst, но не исправляет устойчивое превышение arrival rate. Размер выбирают из memory/latency budget и измерений.
 
-В реальных приложениях **Fan-in** может использоваться в следующих случаях:
+## Fan-out и fan-in
 
-- **Сбор данных:** Например, несколько источников данных передают сообщения, и вам нужно объединить их в один поток для дальнейшей обработки.
-- **Параллельное выполнение задач:** Когда несколько горутин выполняют разные задачи, но их результаты должны быть собраны в одном месте для дальнейшей обработки.
-- **Лимитирование запросов:** В сценариях, где нужно ограничить количество параллельных запросов к внешнему сервису и собрать результаты этих запросов в один канал.
+Fan-out даёт нескольким workers общий input для параллельной независимой обработки. Это меняет completion order; если order важен, переносите sequence number и делайте bounded reorder или не распараллеливайте.
 
-![](https://i.imgur.com/UqDMDvo.png)
+Fan-in объединяет outputs. Общий channel закрывается только после завершения всех forwarders:
 
 ```go
-type payload struct {  
-    name  string  
-    value int  
-}  
-  
-func main() {  
-    done := make(chan struct{})  
-    wg := sync.WaitGroup{}  
-  
-    wg.Add(2)  
-    producers := make([]<-chan payload, 0, 3)  
-    producers = append(producers, producer("Alice", done, &wg))  
-    producers = append(producers, producer("Jack", done, &wg))  
-  
-    fanIn := make(chan payload)  
-  
-    wg.Add(2)  
-    consumer(producers, done, &wg, fanIn)  
-  
-    go func() {  
-       for {  
-          select {  
-          case <-done:  
-             return  
-          case v := <-fanIn:  
-             fmt.Printf("fanIn got %v\n", v)  
-          }  
-       }  
-    }()  
-  
-    time.Sleep(time.Second)  
-    close(done)  
-    wg.Wait()  
-}  
-  
-func producer(name string, done <-chan struct{}, wg *sync.WaitGroup) <-chan payload {  
-    ch := make(chan payload)  
-    var i = 1  
-    go func() {  
-       defer wg.Done()  
-       for {  
-          select {  
-          case <-done:  
-             close(ch)  
-             fmt.Println("completed")  
-             return  
-          case ch <- payload{name, i}:  
-             fmt.Println(name, "produced", i)  
-             i++  
-             time.Sleep(time.Millisecond * 500)  
-          }  
-       }  
-    }()  
-    return ch  
-}  
-  
-func consumer(channels []<-chan payload, done <-chan struct{}, wg *sync.WaitGroup, fanIn chan<- payload) {  
-    for i, ch := range channels {  
-       i++  
-       go func() {  
-          defer wg.Done()  
-          fmt.Println("started consume of producer", i)  
-          for {  
-             select {  
-             case <-done:  
-                fmt.Println("consume of producer", i, "completed")  
-                return  
-             case v := <-ch:  
-                fmt.Println("consumer of producer", i, "got value", v.value, "from",v.name) 
-                fanIn <- v  
-             }  
-          }  
-       }()  
-    }  
+func merge[T any](ctx context.Context, inputs ...<-chan T) <-chan T {
+    out := make(chan T)
+    var wg sync.WaitGroup
+    for _, input := range inputs {
+        input := input
+        wg.Go(func() {
+            for v := range input {
+                select {
+                case out <- v:
+                case <-ctx.Done():
+                    return
+                }
+            }
+        })
+    }
+    go func() {
+        wg.Wait()
+        close(out)
+    }()
+    return out
 }
 ```
-#### Fan-In Extended
 
-Мультиплексор с несколькими выходами
+`WaitGroup.Go` доступен в Go 1.25+. Для более старого toolchain используйте `Add` до запуска goroutine и `defer Done`.
 
-```go
-type payload struct {  
-    name  string  
-    value int  
-}  
-  
-func main() {  
-    done := make(chan struct{})  
-    wg := sync.WaitGroup{}  
-  
-    wg.Add(3)  
-    producers := make([]<-chan payload, 0, 3)  
-    producers = append(producers, producer("Alice", done, &wg))  
-    producers = append(producers, producer("Jack", done, &wg))  
-    producers = append(producers, producer("Bob", done, &wg))  
-  
-    fanIn1 := make(chan payload)  
-    fanIn2 := make(chan payload)  
-  
-    wg.Add(3)  
-    consumer("C1", producers, done, &wg, fanIn1)  
-  
-    wg.Add(3)  
-    consumer("C2", producers, done, &wg, fanIn2)  
-  
-    go func() {  
-       for {  
-          select {  
-          case <-done:  
-             return  
-          case v := <-fanIn1:  
-             fmt.Printf("fanIn1 got %v\n", v)  
-          case v := <-fanIn2:  
-             fmt.Printf("fanIn2 got %v\n", v)  
-          }  
-       }  
-    }()  
-  
-    time.Sleep(time.Second)  
-    close(done)  
-    wg.Wait()  
-}  
-  
-func producer(name string, done <-chan struct{}, wg *sync.WaitGroup) <-chan payload {  
-    ch := make(chan payload)  
-    var i = 1  
-    go func() {  
-       defer wg.Done()  
-       for {  
-          select {  
-          case <-done:  
-             close(ch)  
-             fmt.Println("completed")  
-             return  
-          case ch <- payload{name, i}:  
-             fmt.Println(name, "produced", i)  
-             i++  
-             time.Sleep(time.Millisecond * 500)  
-          }  
-       }  
-    }()  
-    return ch  
-}  
-  
-func consumer(name string, channels []<-chan payload, done <-chan struct{}, wg *sync.WaitGroup, fanIn chan<- payload) {  
-    for i, ch := range channels {  
-       i++  
-       go func() {  
-          defer wg.Done()  
-          fmt.Println("started consumer", name, i)  
-          for {  
-             select {  
-             case <-done:  
-                fmt.Println("consumer", name, i, "completed")  
-                return  
-             case v := <-ch:  
-                fmt.Println("Consumer", name, i, "got value", v.value, "from", v.name)  
-                fanIn <- v  
-             }  
-          }  
-       }()  
-    }  
-}
-```
-#### Fan-Out
+## Worker pool
 
-**Fan-out** — это паттерн в конкурентном программировании, который используется для разделения *одного входного канала на несколько выходных каналов*. Этот паттерн позволяет распределить поток данных между несколькими горутинами, которые могут обрабатывать данные параллельно. Это особенно полезно, когда нужно выполнить одну и ту же операцию над каждым элементом данных, но при этом обработку можно распараллелить для увеличения производительности.
+Worker pool ограничивает concurrent expensive operations. Queue тоже bounded; при заполнении policy должна быть явной: backpressure, reject/load shed или spill в durable broker. Бесконечная in-memory queue отменяет защиту pool-а.
 
-**Fan-out** может быть полезен в следующих сценариях:
+Количество workers выбирают по bottleneck. Для CPU-bound стартуют около доступного parallelism и измеряют; для I/O-bound учитывают latency, rate, dependency pool/limits и Little's Law. Больше workers может увеличить contention и tail latency.
 
-- **Обработка больших объёмов данных:** Когда нужно параллельно обрабатывать большое количество данных, например, при анализе логов или обработке изображений.
-- **Обработка запросов в реальном времени:** В системах, где важно быстрое время отклика, например, в веб-сервисах или обработке событий.
-- **Масштабируемые сервисы:** В микросервисных архитектурах, где отдельные сервисы могут обрабатывать данные параллельно.
+## Singleflight и semaphore
 
-```go
-func main() {  
-    wg := sync.WaitGroup{}  
-    work := []int{1, 2, 3, 4, 5, 6, 7, 8}  
-  
-    wg.Add(1)  
-    in := generateWork(work, &wg)  
-  
-    wg.Add(3)  
-    fanOut(in, "Alice", &wg)  
-    fanOut(in, "Jack", &wg)  
-    fanOut(in, "Bob", &wg)  
-    wg.Wait()  
-}  
-  
-func fanOut(in <-chan int, name string, wg *sync.WaitGroup) {  
-    go func() {  
-       defer wg.Done()  
-  
-       for data := range in {  
-          fmt.Println(name, "processed", data)  
-       }  
-    }()  
-}  
-  
-func generateWork(work []int, wg *sync.WaitGroup) <-chan int {  
-    ch := make(chan int)  
-  
-    go func() {  
-       defer wg.Done()  
-       defer close(ch)  
-  
-       for _, w := range work {  
-          ch <- w  
-       }  
-       fmt.Println("All data written")  
-    }()  
-    return ch  
-}
-```
-#### Pipeline
+Singleflight объединяет concurrent одинаковую работу, но не cache-ит результат после завершения и делает callers зависимыми от одного execution. Key должен быть bounded/correctly scoped.
 
-**Pipeline** (или "Конвейер") — это паттерн в программировании, который позволяет организовать последовательную обработку данных через несколько этапов (шагов), где каждый этап выполняет определённую функцию и передаёт результаты следующему этапу через каналы. Этот паттерн особенно полезен в сценариях, где требуется последовательная обработка данных с возможностью параллелизации на каждом шаге.
+Buffered channel иногда используется как semaphore, но `x/sync/semaphore` поддерживает weighted acquisition/context. Release выполняют на всех paths. Локальный semaphore не ограничивает весь fleet — нужен distributed admission или downstream quota.
 
-```go
-func main() {  
-    in := generateWork([]int{0, 1, 2, 3, 4, 5, 6, 7, 8})  
-  
-    out := filterOdd(in) // оставляем только четные числа  
-    out = square(out)    // возводим в квадрат  
-    out = half(out)      // и делим пополам  
-  
-    for value := range out {  
-       fmt.Println(value)  
-    }  
-}  
-  
-func filterOdd(in <-chan int) <-chan int {  
-    out := make(chan int)  
-  
-    go func() {  
-       defer close(out)  
-  
-       for i := range in {  
-          if i%2 == 0 {  
-             out <- i  
-          }  
-       }  
-    }()  
-    return out  
-}  
-  
-func square(in <-chan int) <-chan int {  
-    out := make(chan int)  
-  
-    go func() {  
-       defer close(out)  
-  
-       for i := range in {  
-          value := math.Pow(float64(i), 2)  
-          out <- int(value)  
-       }  
-    }()  
-    return out  
-}  
-  
-func half(in <-chan int) <-chan int {  
-    out := make(chan int)  
-  
-    go func() {  
-       defer close(out)  
-  
-       for i := range in {  
-          value := i / 2  
-          out <- value  
-       }  
-    }()  
-    return out  
-}  
-  
-func generateWork(work []int) <-chan int {  
-    ch := make(chan int)  
-  
-    go func() {  
-       defer close(ch)  
-  
-       for _, w := range work {  
-          ch <- w  
-       }  
-    }()  
-    return ch  
-}
-```
-#### Mutex (реализация на каналах)
+## Periodic/background work
 
-```go
-type Mutex struct {  
-    s chan struct{}  
-}  
-  
-func NewMutex() Mutex {  
-    return Mutex{make(chan struct{}, 1)}  
-}  
-  
-func (m Mutex) Lock() {  
-    m.s <- struct{}{}  
-}  
-  
-func (m Mutex) Unlock() {  
-    <-m.s  
-}  
-  
-const N = 1000  
-  
-func main() {  
-    m := NewMutex()  
-    counter := 0  
-    wg := sync.WaitGroup{}  
-  
-    wg.Add(N)  
-    for i := 1; i <= N; i++ {  
-       go func() {  
-          m.Lock()  
-          counter++  
-          m.Unlock()  
-          wg.Done()  
-       }()  
-    }  
-    wg.Wait()  
-    fmt.Println("counter:", counter)  
-}
-```
-#### Semaphore
+Ticker/consumer/sweeper принадлежит process component-у: owner хранит cancel, goroutine вызывает `Stop`/закрывает resources и входит в shutdown wait. Не создавайте ticker на каждый request. Jitter schedules, чтобы replicas не образовали herd.
 
-**Семафор** — это примитив синхронизации, используемый в программировании для управления доступом к общим ресурсам в многопоточных и параллельных вычислениях. Он *ограничивает количество одновременно выполняемых потоков (или горутин) до заданного значения*.
+## Failure checklist
 
-```go
-type Semaphore chan struct{}  
-  
-func NewSemaphore(n int) Semaphore {  
-    return make(Semaphore, n)  
-}  
-  
-func (s Semaphore) Acquire(n int) {  
-    e := struct{}{}  
-    for i := 0; i < n; i++ {  
-       s <- e  
-    }  
-}  
-  
-func (s Semaphore) Release(n int) {  
-    for i := 0; i < n; i++ {  
-       <-s  
-    }  
-}  
-  
-const N = 3  
-const TOTAL = 10  
-  
-func main() {  
-    sem := NewSemaphore(N)  
-    done := make(chan bool)  
-    for i := 1; i <= TOTAL; i++ {  
-       sem.Acquire(1)  
-       go func() {  
-          defer sem.Release(1)  
-  
-          process(i)  
-          if i == TOTAL {  
-             done <- true  
-          }  
-       }()  
-    }  
-    <-done  
-}  
-  
-func process(id int) {  
-    fmt.Printf("[%s]: running task %d\n", time.Now().Format("15:04:05"), id)  
-    time.Sleep(1 * time.Second)  
-}
-```
-### Паттерны параллельных вычислений
+- кто закрывает каждый channel и может ли быть double close;
+- что происходит при early consumer exit;
+- куда возвращается первая/несколько errors;
+- кто отменяет siblings;
+- ограничены ли goroutines, queue и result buffering;
+- сохраняется ли нужный order/idempotency;
+- завершится ли shutdown при зависшем dependency;
+- какие metrics/profile покажут saturation или leak.
 
-**Паттерны параллельных вычислений** — это наборы решений (шаблоны) для организации параллельного выполнения задач в программировании. Они помогают эффективно использовать ресурсы многопроцессорных систем, разделяя задачи на независимые части и выполняя их одновременно.
-#### Пул потоков (Thread Pool) или Worker Pool
+См. [backpressure](backpressure.md), [graceful shutdown](graceful-shutdown.md), [singleflight](../../backend-patterns/singleflight.md) и [production goroutine leak](../../production/goroutine-leak.md).
 
-**Thread Pool** — это паттерн, который предусматривает создание фиксированного количества потоков (горутины в случае Go) для выполнения задач. Задачи поступают в очередь, откуда их берут потоки и выполняют. Этот паттерн помогает ограничить количество одновременно выполняющихся задач, что особенно полезно для управления ресурсами.
+## Источники
 
-**Применение**:
-
-- Управление ограниченными ресурсами (например, подключения к базе данных).
-- Выполнение большого числа небольших задач.
-
-```go
-const totalJobs = 10  
-const totalWorkers = 2  
-  
-func main() {  
-    jobs := make(chan int, totalJobs)  
-    results := make(chan int, totalJobs)  
-  
-    for w := 1; w <= totalWorkers; w++ {  
-       go worker(w, jobs, results)  
-    }  
-  
-    // Send jobs  
-    for j := 1; j <= totalJobs; j++ {  
-       jobs <- j  
-    }  
-    close(jobs)  
-  
-    // Receive results  
-    for a := 1; a <= totalJobs; a++ {  
-       <-results  
-    }  
-    close(results)  
-}  
-  
-func worker(id int, jobs <-chan int, results chan<- int) {  
-    var wg sync.WaitGroup  
-  
-    for job := range jobs {  
-       wg.Add(1)  
-  
-       go func() {  
-          defer wg.Done()  
-  
-          fmt.Printf("Worker %d received job %d\n", id, job)  
-  
-          // Do work and send result  
-          result := job * 2  
-          results <- result  
-  
-          fmt.Printf("Worker %d finished job %d\n", id, job)  
-       }()  
-    }  
-    wg.Wait()  
-}
-```
-#### Queue
-
-**Queue (очередь)** — это структура или метод организации задач, при котором задачи помещаются в очередь и обрабатываются по мере их поступления. В контексте параллельных вычислений очередь позволяет управлять задачами, которые могут быть выполнены в несколько этапов или при наличии ограниченных ресурсов.
-
-```go
-const (  
-    N        = 3  
-    MESSAGES = 10  
-)  
-  
-func main() {  
-    var wg sync.WaitGroup  
-  
-    fmt.Println("Queue of length N:", N)  
-    queue := make(chan struct{}, N)  
-  
-    wg.Add(MESSAGES)  
-    for w := 1; w <= MESSAGES; w++ {  
-       process(w, queue, &wg)  
-    }  
-    wg.Wait()  
-}  
-  
-func process(payload int, queue chan struct{}, wg *sync.WaitGroup) {  
-    queue <- struct{}{}  
-  
-    go func() {  
-       defer wg.Done()  
-  
-       fmt.Printf("Start processing of %d\n", payload)  
-       time.Sleep(time.Millisecond * 500)  
-       fmt.Printf("Complete processing of %d\n", payload)  
-  
-       <-queue  
-    }()  
-}
-```
-#### Parallel For Loop
-
-**Parallel For Loop** (параллельный цикл) — это паттерн конкурентности в программировании, который используется для выполнения итераций цикла параллельно, что позволяет значительно ускорить выполнение задач, которые могут быть обработаны независимо друг от друга.
-
-```go
-const DataSize = 4  
-  
-func calculate(val int) int {  
-    time.Sleep(time.Millisecond * time.Duration(rand.Intn(500)))  
-    return val * 2  
-}  
-  
-func main() {  
-    data := make([]int, 0, DataSize)  
-    for i := 0; i < DataSize; i++ {  
-       data = append(data, i+10)  
-    }  
-    results := make([]int, DataSize)  
-    semaphore := make(chan int, DataSize)  
-  
-    fmt.Printf("Before: %v\n", data)  
-    start := time.Now()  
-  
-    for i, xi := range data {  
-       go func() {  
-          results[i] = calculate(xi)  
-          semaphore <- results[i]  
-       }()  
-    }  
-    for i := 0; i < DataSize; i++ {  
-       fmt.Printf("one calculation completed: %d\n", <-semaphore)  
-    }  
-  
-    fmt.Printf("After: %v\n", results)  
-    fmt.Printf("Elapsed: %s\n", time.Since(start))  
-}
-```
-#### Bounded Parallel For Loop
-
-Parallel For Loop с ограничением:
-
-```go
-const (  
-    DataSize       = 10  
-    SemaphoreLimit = 3  
-)  
-  
-func calculate(val int) int {  
-    fmt.Printf("[%s] Calculating %d\n", time.Now().Format("15:04:05"), val)  
-    time.Sleep(time.Millisecond * 1200)  
-    return val * 2  
-}  
-  
-func main() {  
-    data := make([]int, 0, DataSize)  
-    for i := 0; i < DataSize; i++ {  
-       data = append(data, i+1)  
-    }  
-    results := make([]int, DataSize)  
-    semaphore := make(chan struct{}, SemaphoreLimit)  
-    wg := sync.WaitGroup{}  
-  
-    fmt.Printf("Before: %v\n", data)  
-    start := time.Now()  
-  
-    for i, xi := range data {  
-       wg.Add(1)  
-       go func() {  
-          defer wg.Done()  
-          semaphore <- struct{}{}  
-          results[i] = calculate(xi)  
-          <-semaphore  
-       }()  
-    }  
-    wg.Wait()  
-    fmt.Printf("After: %v\n", results)  
-    fmt.Printf("Elapsed time: %s\n", time.Since(start))  
-}
-```
-### Паттерны отложенных вычислений
-
-**Паттерны отложенных вычислений** — это подходы и методики программирования, которые позволяют отложить выполнение определённых вычислений или операций до момента, когда результат этих вычислений действительно понадобится. Основная идея заключается в том, чтобы не тратить ресурсы на выполнение задач, которые могут быть неактуальными или требуются не сразу, а выполнить их позже, когда в них возникнет необходимость.
-#### Future (Promise)
-
-**Future** (в некоторых языках также называемый **Promise**) — это объект, который представляет собой результат вычисления, которое может завершиться в будущем. Этот паттерн позволяет запустить вычисления в фоне и получить результат позже, когда он понадобится. Это особенно полезно в многопоточных или асинхронных средах, где нужно выполнять операции параллельно, не блокируя основной поток выполнения.
-
-```go
-type data struct {  
-    Body  string  
-    Error error  
-}  
-  
-func main() {  
-    future1 := future("https://example1.com")  
-    future2 := future("https://example2.com")  
-  
-    fmt.Println("Requests started")  
-  
-    body1 := <-future1  
-    body2 := <-future2  
-  
-    fmt.Printf("Response 1: %v\n", body1)  
-    fmt.Printf("Response 2: %v\n", body2)  
-}  
-  
-func doGet(url string) (string, error) {  
-    time.Sleep(time.Millisecond * 200)  
-    return fmt.Sprintf("Response of %s", url), nil  
-}  
-  
-func future(url string) <-chan data {  
-    c := make(chan data, 1)  
-  
-    go func() {  
-       body, err := doGet(url)  
-       c <- data{body, err}  
-    }()  
-    return c  
-}
-```
-#### Lazy Evaluation
-
-**Lazy Evaluation** (ленивые вычисления) — это стратегия вычисления выражений, при которой вычисления откладываются до тех пор, пока результат не потребуется. В отличие от строгих вычислений, где все выражения вычисляются сразу, ленивые вычисления позволяют не выполнять ненужные вычисления, тем самым экономя ресурсы.
-
-```go
-type LazyInt func() int  
-  
-func Make(f LazyInt) LazyInt {  
-    var v int  
-    var once sync.Once  
-    return func() int {  
-       once.Do(func() {  
-          v = f()  
-          f = nil  
-       })  
-       return v  
-    }  
-}  
-  
-func main() {  
-    n := Make(func() int {  
-       fmt.Println("Doing expensive calculations")  
-       return 23  
-    })  
-    fmt.Println(n())      // Calculates the 23  
-    fmt.Println(n() + 42) // Reuses the calculated value  
-}
-```
-### Краткое содержание
-
-**Thread Pool**: используется для ограничения количества одновременно выполняющихся задач, управляя числом горутин и предотвращая перегрузку системы. **Semaphore**: контролирует доступ к ограниченным ресурсам, ограничивая количество горутин, которые могут одновременно их использовать. **Fan-In**: объединяет результаты нескольких горутин в один канал. **Fan-Out**: распределяет задачи среди нескольких горутин для параллельной обработки. **Done Channel**: используется для безопасного завершения горутин, позволяя передать сигнал остановки.
+- [Go blog: Pipelines and cancellation](https://go.dev/blog/pipelines)
+- [`sync.WaitGroup`](https://pkg.go.dev/sync#WaitGroup)
+- [`golang.org/x/sync/semaphore`](https://pkg.go.dev/golang.org/x/sync/semaphore)

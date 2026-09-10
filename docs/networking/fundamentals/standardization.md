@@ -1,8 +1,10 @@
 ---
 title: "Стандартизация сетей"
+description: Роль IETF, RFC, IEEE и других стандартов в interoperability.
 tags:
   - networking
 created: 2024-07-23
+updated: 2026-09-10
 ---
 
 # Стандартизация сетей

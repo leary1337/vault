@@ -1,8 +1,10 @@
 ---
 title: "DHCP"
+description: Dynamic host configuration, lease lifecycle и relay agents.
 tags:
   - networking
 created: 2024-07-23
+updated: 2026-09-10
 ---
 
 # DHCP

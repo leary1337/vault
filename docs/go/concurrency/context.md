@@ -46,6 +46,8 @@ HTTP server отменяет `Request.Context` при disconnect/заверше�
 
 Kafka message не получает Context «автоматически»: trace/correlation metadata нужно сериализовать в headers, а processing lifecycle связать с consumer shutdown/rebalance.
 
+Продолжение по boundaries: [HTTP request context](../backend/request-context.md), [SQL cancellation](../testing/database-testing.md), [gRPC deadlines](../grpc/deadlines-and-cancellation.md) и [OpenTelemetry propagation](../../observability/opentelemetry.md).
+
 ## `WithoutCancel`
 
 Detached work часто становится leak. Если audit/log delivery должна пережить request, передайте её owned bounded worker-у с собственным shutdown context, queue limit и observability. `WithoutCancel` не создаёт owner и не добавляет timeout.

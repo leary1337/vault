@@ -326,7 +326,8 @@
 
 ## Practice
 
-* [Практический Go backend-проект](practice/go-backend-project.md)
+* [Практика](practice/README.md)
+  * [Практический Go backend-проект](practice/go-backend-project.md)
 
 ## Interviews
 

@@ -1,8 +1,10 @@
 ---
 title: "Методы"
+description: Method declarations, receivers, method sets и embedding в Go.
 tags:
   - go
 created: 2024-07-24
+updated: 2026-09-10
 ---
 
 # Методы

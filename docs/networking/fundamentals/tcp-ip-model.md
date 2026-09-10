@@ -1,8 +1,10 @@
 ---
 title: "Модель TCP IP"
+description: Internet protocol suite layers и encapsulation boundaries.
 tags:
   - networking
 created: 2024-07-22
+updated: 2026-09-10
 ---
 
 # Модель TCP IP

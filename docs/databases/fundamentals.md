@@ -1,71 +1,51 @@
 ---
-title: "Общие сведения"
-tags:
-  - databases
+title: Основы баз данных
+description: Модели данных, constraints, transactions, indexes и выбор storage.
+tags: [databases, fundamentals]
 created: 2024-07-31
+updated: 2026-09-10
 ---
 
-# Общие сведения
+# Основы баз данных
 
-### Описание
+Database хранит state по определённой data model и предоставляет операции с конкретными consistency, durability и query guarantees. «SQL/NoSQL» недостаточно для выбора: сначала определите access patterns, invariants, scale, failure model и operations.
 
-**База данных (БД)** — это организованная коллекция данных, которая позволяет хранить, управлять и обрабатывать информацию.
+## Модели и workloads
 
-БД позволяют эффективно хранить и управлять большими объемами информации, поддерживают многопользовательский доступ, обеспечивают защиту и целостность данных.
+- relational model: tables/relations, declarative queries, constraints и joins;
+- key-value: lookup/update по key с ограниченной query model;
+- document: aggregate-shaped records и secondary indexes по поддерживаемым paths;
+- graph: vertices/edges и traversal как основной access pattern;
+- columnar analytical storage: scan/aggregation большого числа rows по части columns;
+- time-series/search/vector engines: специализированные indexing/query semantics.
 
-**Основные концепции:**
+Один продукт может сочетать engines, но каждое новое хранилище добавляет replication, backup, security, consistency и on-call cost. Начинайте с минимального набора, который выполняет требования.
 
-- **Данные:** Основа любой БД; информация, которая хранится и обрабатывается.
-- **Записи (строки):** Структурированные наборы данных, например, информация о конкретном продукте.
-- **Таблицы:** Множество записей, организованных в строки и столбцы.
-- **Схемы:** Структура, определяющая, как данные организованы в БД (например, какие таблицы существуют, какие атрибуты они содержат).
-#### Виды БД
+## Invariants и constraints
 
-БД классифицируются на несколько типов в зависимости от структуры данных и способов их хранения и обработки:
+Schema описывает допустимое состояние: types, `NOT NULL`, unique/check/foreign-key constraints. Application validation улучшает error UX, но concurrent correctness обычно требует authoritative constraint или atomic conditional update.
 
-- **Реляционные базы данных (RDBMS):** Используют таблицы для организации данных. Данные связываются между таблицами с помощью ключей (например, внешний ключ может связывать клиента с его заказами). SQL — основной язык запросов для работы с реляционными базами данных.
-    
-- **Документно-ориентированные базы данных:** Хранят данные в формате документов, часто в JSON-подобных структурах. Это удобно для работы с данными, которые не имеют фиксированной схемы, как, например, пользовательские профили или лог-файлы.
-    
-- **Колонно-ориентированные базы данных:** Фокусируются на хранении данных по столбцам, а не по строкам. Это ускоряет аналитические запросы, так как позволяет быстро обработать данные в определенном столбце.
-    
-- **Графовые базы данных:** Специализируются на хранении и обработке графовых структур, таких как социальные сети, где сущности (узлы) соединены отношениями (рёбрами).
-    
-- **Ключ-значение базы данных:** Хранят данные в виде пар "ключ-значение". Очень эффективны для простых операций чтения/записи, как, например, кэширование.
-    
-- **NewSQL базы данных:** Совмещают поддержку транзакций (как в реляционных базах данных) с горизонтальным масштабированием, характерным для NoSQL решений.
+Normalization уменьшает update anomalies; denormalization/read model ускоряет конкретные reads ценой duplication и synchronization. Укажите owner/source of truth и reconciliation, а не просто «eventual consistency».
 
-Выбор типа базы данных зависит от различных факторов, таких как:
+## Transactions
 
-- **Тип данных и их структура:** Например, для данных с четкой структурой (таблицы) лучше подходят реляционные базы данных.
+ACID раскрывается только вместе с engine/config/failure boundary:
 
-- **Требования к масштабированию и производительности:** NoSQL базы данных часто используются там, где требуются высокая производительность и горизонтальное масштабирование.
+- Atomicity: изменения transaction commit-ятся как единица или abort-ятся;
+- Consistency: если transaction и constraints корректны, commit сохраняет заданные invariants;
+- Isolation: observable interleavings ограничены выбранным isolation level, не обязательно равны serial execution;
+- Durability: acknowledged commit переживает заявленные failures при конкретных WAL/replication/storage settings.
 
-- **Консистентность, доступность и отказоустойчивость:** при network partition распределённая система выбирает, какие операции сохранить доступными, а какие остановить ради требуемой consistency. Подробнее — в [CAP и PACELC](../distributed-systems/cap-and-pacelc.md).
+Eventual consistency означает convergence replicas при прекращении новых updates и выполнении protocol assumptions; это не обещание deadline или availability при любых faults. BASE — исторический informal slogan, не точная альтернатива ACID.
 
-- **Требования к транзакциям и целостности данных:** Если требуется строгая гарантия консистентности данных, лучше использовать базы данных с поддержкой ACID транзакций.
+## Index и query plan
 
-#### Общие концепции
+Index ускоряет поддерживаемые predicates/order, но занимает space, добавляет write/maintenance cost и не гарантирует выбор planner-ом. Проверяйте representative plans/data distribution. N+1, unbounded result и offset pagination часто остаются application problems.
 
-- **ACID:**
-	
-    - **Атомарность (Atomicity):** Транзакции выполняются полностью или не выполняются вовсе.
-    - **Согласованность (Consistency):** Транзакция переводит базу данных из одного согласованного состояния в другое.
-    - **Изоляция (Isolation):** Транзакции выполняются независимо друг от друга.
-    - **Долговечность (Durability):** Результаты успешной транзакции сохраняются в базе данных даже в случае сбоя системы.
-    
-- **BASE:**
-    
-    - **Основная доступность (Basic Availability):** Гарантированная доступность данных.
-    - **Гибкое состояние (Soft state):** Состояние системы может изменяться со временем даже без дополнительных ввода данных.
-    - **Окончательная согласованность (Eventual consistency):** Система гарантирует, что все реплики данных будут согласованы в конечном счете.
-    
-- **CAP-теорема:** при разделении сети нельзя одновременно гарантировать linearizable consistency и ответ каждого доступного узла на каждый запрос. Это не правило «выбрать любые две характеристики» в нормальном режиме.
-    
-- **Нормализация и денормализация:**
-    
-    - **Нормализация:** Процесс организации данных для минимизации избыточности и зависимости.
-    - **Денормализация:** Умышленное внесение избыточности для улучшения производительности чтения.
-### Краткое содержание
+## Scaling и resilience
 
-**База данных (БД)** — это организованная коллекция данных, которая позволяет хранить, управлять и обрабатывать информацию.
+До sharding используйте query/index/schema improvements, caching, batching, connection bounds и vertical/read scaling, если они удовлетворяют SLO. Replication может повышать read capacity/availability, но создаёт lag/failover/conflict semantics. Sharding требует routing key, resharding, cross-shard operations и hotspot plan.
+
+Backup не равен recovery: задайте RPO/RTO, храните independent copies и регулярно восстанавливайте. Наблюдайте query latency, locks, pool waits, CPU/I/O, storage/WAL, replication lag и maintenance debt.
+
+Продолжение: [PostgreSQL](postgresql/README.md), [Redis](redis/README.md), [consistency models](../distributed-systems/consistency-models.md) и [CAP/PACELC](../distributed-systems/cap-and-pacelc.md).

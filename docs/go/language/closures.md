@@ -1,8 +1,10 @@
 ---
 title: "Замыкания"
+description: Lexical capture, lifetime, escape и concurrency hazards замыканий Go.
 tags:
   - go
 created: 2024-07-24
+updated: 2026-09-10
 ---
 
 # Замыкания

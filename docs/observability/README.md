@@ -17,7 +17,7 @@ Observability — способность объяснить внутреннее
 4. [OpenTelemetry](opentelemetry.md): единый instrumentation и export pipeline.
 5. [SLI, SLO и SLA](sli-slo-sla.md): измеримая цель надёжности.
 6. [Alerting](alerting.md): actionable notification по влиянию и burn rate.
-7. [Production debugging](production-debugging.md): воспроизводимый порядок расследования.
+7. [Production debugging](production-debugging.md): воспроизводимый порядок расследования, затем сценарные [production runbooks](../production/README.md).
 
 Сигналы дополняют друг друга: metric обнаруживает рост latency, exemplar или trace показывает медленный путь, а structured log объясняет конкретный отказ. Ни один сигнал сам по себе не является источником истины о бизнес-результате.
 
@@ -34,4 +34,3 @@ Observability — способность объяснить внутреннее
 
 - [OpenTelemetry: observability primer](https://opentelemetry.io/docs/concepts/observability-primer/)
 - [Google SRE: monitoring distributed systems](https://sre.google/sre-book/monitoring-distributed-systems/)
-

@@ -1,8 +1,10 @@
 ---
 title: "Организация сетей TCP IP"
+description: Host-to-host forwarding, encapsulation, routing и protocol roles.
 tags:
   - networking
 created: 2024-07-23
+updated: 2026-09-10
 ---
 
 # Организация сетей TCP IP
