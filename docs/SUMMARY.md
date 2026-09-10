@@ -317,3 +317,7 @@
   * [Connection pool exhaustion](production/connection-pool-exhaustion.md)
   * [Retry storm](production/retry-storm.md)
   * [Thundering herd](production/thundering-herd.md)
+
+## Practice
+
+* [Практический Go backend-проект](practice/go-backend-project.md)
