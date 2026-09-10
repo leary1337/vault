@@ -22,5 +22,5 @@
 | Observability и production | P0 | DONE | Signals/SLO + ordered diagnostic incident runbooks |
 | Backend architecture и security | P1 | DONE | Boundaries/trade-offs; OWASP Top 10:2025, ASVS и IETF BCP |
 | Practice project | P2 | DONE | Ads Service roadmap связывает contracts, data, reliability и operations |
-| Interview references | P2 | TODO | Только публичная актуальная информация |
+| Interview references | P2 | DONE | Public AvitoTech materials checked 2026-09-10; variability disclosed |
 | Final cross-links и content quality review | P0 | TODO | Устранить дубли, external images и unsupported claims |

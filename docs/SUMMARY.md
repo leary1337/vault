@@ -321,3 +321,15 @@
 ## Practice
 
 * [Практический Go backend-проект](practice/go-backend-project.md)
+
+## Interviews
+
+* [Интервью](interviews/README.md)
+  * [Интервью в Avito](interviews/avito/README.md)
+    * [Scoring / screening](interviews/avito/scoring.md)
+    * [Programming](interviews/avito/programming.md)
+    * [Platform](interviews/avito/platform.md)
+    * [System Design](interviews/avito/system-design.md)
+    * [Final](interviews/avito/final.md)
+    * [Skill matrix](interviews/avito/skill-matrix.md)
+    * [Mock interviews](interviews/avito/mock-interviews.md)
