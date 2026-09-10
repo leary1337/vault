@@ -96,6 +96,12 @@ Runtime-материалы переписаны для Go 1.27: G-M-P без mag
 
 Cases покрывают URL shortener, rate limiter, notifications, counters, file storage, chat, feed, autocomplete, favorites и classifieds. Каждый разбор включает requirements, paths, failure modes, alternatives и trade-offs вместо одной «правильной» схемы.
 
+## Batch 6b — Algorithms
+
+Создан раздел из 20 страниц: complexity, 17 reusable algorithm/data-structure patterns и Go examples. Каждая pattern page объясняет recognition, invariant/template, complexity, mistakes и practice tasks без dump готовых решений.
+
+Go page содержит 10 annotated examples из спецификации: in-place deduplication, intervals, Unicode-aware sliding window, lower bound, Top K/heap, BFS/DFS, LRU и cancellable worker pool. Go toolchain на машине отсутствует, поэтому compilation validation остаётся недоступной; syntax и edge cases проверены вручную.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.

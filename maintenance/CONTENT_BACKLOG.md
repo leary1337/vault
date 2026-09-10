@@ -17,8 +17,8 @@
 | Networking | P1 | TODO | Проверить факты, убрать критическую зависимость от external images |
 | Distributed systems и backend patterns | P0 | DONE | Consistency/failures + 14 reliability/data patterns |
 | System Design | P1 | DONE | 15-step process, 17 fundamentals и 10 cases |
-| Algorithms | P1 | IN PROGRESS | Паттерны и Go examples без dump решений |
-| Linux, Docker, Kubernetes | P1 | TODO | Docker переписать с нуля |
+| Algorithms | P1 | DONE | 17 patterns + complexity + 10 annotated Go examples |
+| Linux, Docker, Kubernetes | P1 | IN PROGRESS | Docker переписать с нуля |
 | Observability и production | P0 | TODO | Диагностический порядок и SLO/error budgets |
 | Backend architecture и security | P1 | TODO | Boundaries/trade-offs, OWASP primary sources |
 | Practice project | P2 | TODO | Reference roadmap, не приложение в docs repo |
