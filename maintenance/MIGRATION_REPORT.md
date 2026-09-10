@@ -114,6 +114,12 @@ Go page содержит 10 annotated examples из спецификации: in
 
 Production example использует Go 1.27.1 builder, separate test/build stages, BuildKit caches, `CGO_ENABLED=0`, distroless non-root runtime и exec-form entrypoint; digest pinning оставлено обязательным deployment policy без выдуманного digest.
 
+## Batch 7c — Kubernetes
+
+Создан раздел из 12 страниц для Kubernetes 1.37: Pod/Deployment/Service/Ingress, ConfigMap/Secret, requests/limits, probes, HPA, graceful termination, networking и troubleshooting. Чётко разведены readiness/liveness/startup, requests vs limits, CPU throttling vs memory OOM и core contracts vs CNI/Ingress/provider implementations.
+
+Go runtime связан с container-aware `GOMAXPROCS`, cgroup CPU quota, soft `GOMEMLIMIT`, memory headroom и bounded HTTP/gRPC/consumer shutdown. Материал проверен по официальной документации Kubernetes 1.37.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.
