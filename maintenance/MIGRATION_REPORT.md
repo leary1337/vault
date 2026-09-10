@@ -52,6 +52,14 @@ Batch 1 завершён. 50 содержательных страниц пер�
 
 Primary sources: Go 1.27 release notes и specification, Go Memory Model, standard library package docs и исходный код `internal/runtime/maps`.
 
+## Batch 3 — Go runtime и backend
+
+Runtime-материалы переписаны для Go 1.27: G-M-P без magic constants, container-aware `GOMAXPROCS`, netpoller, escape analysis, RSS vs heap, Green Tea GC, `GOGC` и soft `GOMEMLIMIT`. Performance-раздел дополнен pprof, runtime trace/flight recorder, `B.Loop`, race detector, PGO и новым профилем `goroutineleak`.
+
+Созданы production-oriented разделы `go/backend`, `go/grpc` и `go/testing`. Они покрывают HTTP server/client timeouts и pooling, body lifecycle, retries/idempotency, request context, protobuf evolution, gRPC status/deadlines/streaming, unit/integration/HTTP/DB tests, fuzzing и Testcontainers.
+
+Проверено по Go 1.25–1.27 release notes, current standard library docs/source, официальным gRPC и Protocol Buffers guides и официальной документации Testcontainers for Go. На рабочей машине Go toolchain отсутствует, поэтому snippets прошли manual review, но compilation check отложен до доступности `go`.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.

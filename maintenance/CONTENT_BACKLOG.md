@@ -10,8 +10,8 @@
 | Go interfaces, errors, panic/recover | P0 | DONE | Добавлены method sets, typed nil, boundaries и recovery scope |
 | Go generics | P0 | DONE | Go 1.27: generic aliases и generic methods с version boundaries |
 | Go memory model и concurrency | P0 | DONE | Добавлены happens-before, context, atomics, races/leaks/backpressure/shutdown |
-| Go runtime, backend, gRPC, testing | P0 | IN PROGRESS | Batch 3 |
-| PostgreSQL | P0 | TODO | Locks переписать как PostgreSQL-specific |
+| Go runtime, backend, gRPC, testing | P0 | DONE | Go 1.27 runtime/GC/profiling, HTTP, gRPC и test strategy |
+| PostgreSQL | P0 | IN PROGRESS | Locks переписать как PostgreSQL-specific |
 | Redis | P1 | TODO | Создать раздел без универсализации Redlock |
 | Kafka и messaging patterns | P0 | TODO | KRaft-only current architecture, producer semantics |
 | Networking | P1 | TODO | Проверить факты, убрать критическую зависимость от external images |

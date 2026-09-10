@@ -83,3 +83,4 @@
 
 - 2026-09-10 — Batch 1: все 53 страницы `Programming/` сопоставлены с 50 content pages и тремя новыми indexes; legacy paths удалены после link validation.
 - 2026-09-10 — Batch 2: все исходные P0-страницы Go из audit (`basics`, `map`, `slice`, `interfaces`, errors/panic, goroutines/channels/sync) переписаны; добавлены отсутствующие P0-страницы.
+- 2026-09-10 — Batch 3: runtime/scheduler/memory/GC/pprof обновлены для Go 1.27; добавлены backend, gRPC и testing sections.
