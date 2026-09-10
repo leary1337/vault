@@ -152,6 +152,19 @@
 
 ## Проектирование и эксплуатация
 
+* [Распределённые системы](distributed-systems/README.md)
+  * [Модели согласованности](distributed-systems/consistency-models.md)
+  * [CAP и PACELC](distributed-systems/cap-and-pacelc.md)
+  * [Репликация](distributed-systems/replication.md)
+  * [Sharding](distributed-systems/sharding.md)
+  * [Consistent hashing](distributed-systems/consistent-hashing.md)
+  * [Quorums](distributed-systems/quorums.md)
+  * [Consensus](distributed-systems/consensus.md)
+  * [Leader election](distributed-systems/leader-election.md)
+  * [Распределённые транзакции](distributed-systems/distributed-transactions.md)
+  * [Часы и порядок событий](distributed-systems/clocks-and-ordering.md)
+  * [Идемпотентность](distributed-systems/idempotency.md)
+  * [Модели отказов](distributed-systems/failure-models.md)
 * [System Design](system-design/README.md)
   * [Основы](system-design/fundamentals/README.md)
     * [Ключевые понятия](system-design/fundamentals/core-concepts.md)

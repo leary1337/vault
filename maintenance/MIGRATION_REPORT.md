@@ -78,6 +78,12 @@ Runtime-материалы переписаны для Go 1.27: G-M-P без mag
 
 Добавлены Transactional Outbox и Inbox/deduplication с polling/CDC, Debezium, stable event ID и atomic database patterns. Материал проверен по Kafka 4.3 documentation, official release notes/KIPs и Debezium documentation.
 
+## Batch 5b — Distributed systems
+
+Создан связанный раздел из 13 страниц: consistency models, корректная область CAP/PACELC, replication, sharding/consistent hashing, quorums, consensus/leader election, clocks, distributed transactions, idempotency и failure models. Упрощение «CAP = любые две из трёх» также исправлено в старой database fundamentals page.
+
+Страницы построены вокруг явных scope и failure assumptions; использованы первичные papers Raft/Paxos, Dynamo, Spanner, Lamport clocks, linearizability, PACELC и Sagas.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.
