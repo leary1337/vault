@@ -60,6 +60,12 @@ Runtime-материалы переписаны для Go 1.27: G-M-P без mag
 
 Проверено по Go 1.25–1.27 release notes, current standard library docs/source, официальным gRPC и Protocol Buffers guides и официальной документации Testcontainers for Go. На рабочей машине Go toolchain отсутствует, поэтому snippets прошли manual review, но compilation check отложен до доступности `go`.
 
+## Batch 4a — PostgreSQL
+
+Раздел PostgreSQL переписан и расширен до 17 страниц для PostgreSQL 18.6. Generic lock terminology заменена конкретными PostgreSQL semantics: MVCC visibility, три реально различающихся isolation level, четыре row-lock mode, table/advisory locks, deadlock monitoring и optimistic concurrency.
+
+Добавлены query и operations tracks: index access methods и write cost, planner statistics, безопасное чтение `EXPLAIN`, joins, WAL/PITR, vacuum/freeze, physical и logical replication, declarative partitioning, pooling, keyset pagination и SQL practice. Утверждения сверены с PostgreSQL 18 official documentation; PostgreSQL 19 на дату проверки остаётся beta и не используется как baseline.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.
