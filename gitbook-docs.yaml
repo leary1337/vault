@@ -1,0 +1,188 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+version: 1
+
+site:
+  title: Backend Knowledge Base
+  structure:
+    - type: section
+      key: section-go
+      title: Go
+      path: go
+      default: true
+      children:
+        - type: space
+          key: space-go
+          title: Go
+          path: go
+          default: true
+          content:
+            directory: ./docs/go
+            language: ru
+
+    - type: section
+      key: section-data-messaging
+      title: Данные и messaging
+      path: data-messaging
+      children:
+        - type: space
+          key: space-databases
+          title: Базы данных
+          path: databases
+          default: true
+          content:
+            directory: ./docs/databases
+            language: ru
+        - type: space
+          key: space-messaging
+          title: Messaging
+          path: messaging
+          content:
+            directory: ./docs/messaging
+            language: ru
+
+    - type: section
+      key: section-networking
+      title: Сети
+      path: networking
+      children:
+        - type: space
+          key: space-networking
+          title: Сети
+          path: networking
+          default: true
+          content:
+            directory: ./docs/networking
+            language: ru
+
+    - type: section
+      key: section-design-operations
+      title: Проектирование и эксплуатация
+      path: design-operations
+      children:
+        - type: space
+          key: space-distributed-systems
+          title: Распределённые системы
+          path: distributed-systems
+          default: true
+          content:
+            directory: ./docs/distributed-systems
+            language: ru
+        - type: space
+          key: space-backend-patterns
+          title: Backend patterns
+          path: backend-patterns
+          content:
+            directory: ./docs/backend-patterns
+            language: ru
+        - type: space
+          key: space-system-design
+          title: System Design
+          path: system-design
+          content:
+            directory: ./docs/system-design
+            language: ru
+        - type: space
+          key: space-algorithms
+          title: Algorithms
+          path: algorithms
+          content:
+            directory: ./docs/algorithms
+            language: ru
+        - type: space
+          key: space-linux
+          title: Linux для backend engineer
+          path: linux
+          content:
+            directory: ./docs/linux
+            language: ru
+        - type: space
+          key: space-containers
+          title: Контейнеры
+          path: containers
+          content:
+            directory: ./docs/containers
+            language: ru
+
+    - type: section
+      key: section-observability
+      title: Observability
+      path: observability
+      children:
+        - type: space
+          key: space-observability
+          title: Observability
+          path: observability
+          default: true
+          content:
+            directory: ./docs/observability
+            language: ru
+
+    - type: section
+      key: section-backend-architecture
+      title: Backend architecture
+      path: backend-architecture
+      children:
+        - type: space
+          key: space-backend-architecture
+          title: Backend architecture
+          path: backend-architecture
+          default: true
+          content:
+            directory: ./docs/backend-architecture
+            language: ru
+
+    - type: section
+      key: section-security
+      title: Security
+      path: security
+      children:
+        - type: space
+          key: space-security
+          title: Backend security
+          path: security
+          default: true
+          content:
+            directory: ./docs/security
+            language: ru
+
+    - type: section
+      key: section-production
+      title: Production
+      path: production
+      children:
+        - type: space
+          key: space-production
+          title: Production engineering
+          path: production
+          default: true
+          content:
+            directory: ./docs/production
+            language: ru
+
+    - type: section
+      key: section-practice
+      title: Practice
+      path: practice
+      children:
+        - type: space
+          key: space-practice
+          title: Практика
+          path: practice
+          default: true
+          content:
+            directory: ./docs/practice
+            language: ru
+
+    - type: section
+      key: section-interviews
+      title: Interviews
+      path: interviews
+      children:
+        - type: space
+          key: space-interviews
+          title: Интервью
+          path: interviews
+          default: true
+          content:
+            directory: ./docs/interviews
+            language: ru
