@@ -85,3 +85,4 @@
 - 2026-09-10 — Batch 2: все исходные P0-страницы Go из audit (`basics`, `map`, `slice`, `interfaces`, errors/panic, goroutines/channels/sync) переписаны; добавлены отсутствующие P0-страницы.
 - 2026-09-10 — Batch 3: runtime/scheduler/memory/GC/pprof обновлены для Go 1.27; добавлены backend, gRPC и testing sections.
 - 2026-09-10 — Batch 4a: PostgreSQL расширен до architecture, MVCC, transactions, isolation, locks, query performance, WAL, maintenance и replication; старая generic locks page полностью заменена.
+- 2026-09-10 — Batch 4b: добавлен Redis 8.10 section с caching, TTL/eviction, persistence, replication, Sentinel, Cluster, locks и hot-key operations.

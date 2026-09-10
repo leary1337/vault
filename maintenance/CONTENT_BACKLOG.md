@@ -12,8 +12,8 @@
 | Go memory model и concurrency | P0 | DONE | Добавлены happens-before, context, atomics, races/leaks/backpressure/shutdown |
 | Go runtime, backend, gRPC, testing | P0 | DONE | Go 1.27 runtime/GC/profiling, HTTP, gRPC и test strategy |
 | PostgreSQL | P0 | DONE | PostgreSQL 18: internals, queries, concurrency и operations |
-| Redis | P1 | IN PROGRESS | Создать раздел без универсализации Redlock |
-| Kafka и messaging patterns | P0 | TODO | KRaft-only current architecture, producer semantics |
+| Redis | P1 | DONE | Redis 8.10: caching, memory, durability, HA, Cluster и locks |
+| Kafka и messaging patterns | P0 | IN PROGRESS | KRaft-only current architecture, producer semantics |
 | Networking | P1 | TODO | Проверить факты, убрать критическую зависимость от external images |
 | Distributed systems и backend patterns | P0 | TODO | Исправить CAP, добавить PACELC и failure modes |
 | System Design | P1 | TODO | Разделить четыре большие заметки на связанные страницы |

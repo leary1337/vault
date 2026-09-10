@@ -8,4 +8,4 @@ updated: 2026-09-10
 
 # Базы данных
 
-Начните с [общих принципов](fundamentals.md), затем переходите к [PostgreSQL](postgresql/README.md). Общие модели не следует автоматически переносить на конкретную СУБД: уровни изоляции и locking semantics всегда рассматриваются в контексте реализации. Redis рассматривается отдельно как in-memory data store с собственными persistence и consistency trade-offs.
+Начните с [общих принципов](fundamentals.md), затем переходите к [PostgreSQL](postgresql/README.md). [Redis](redis/README.md) рассматривается отдельно как in-memory data store с собственными persistence и consistency trade-offs. Общие модели не следует автоматически переносить на конкретную СУБД: isolation, locking и failover semantics всегда рассматриваются в контексте реализации.

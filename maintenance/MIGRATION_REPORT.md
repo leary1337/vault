@@ -66,6 +66,12 @@ Runtime-материалы переписаны для Go 1.27: G-M-P без mag
 
 Добавлены query и operations tracks: index access methods и write cost, planner statistics, безопасное чтение `EXPLAIN`, joins, WAL/PITR, vacuum/freeze, physical и logical replication, declarative partitioning, pooling, keyset pagination и SQL practice. Утверждения сверены с PostgreSQL 18 official documentation; PostgreSQL 19 на дату проверки остаётся beta и не используется как baseline.
 
+## Batch 4b — Redis
+
+Создан раздел из 10 страниц для Redis Open Source 8.10.1: native data structures и Streams, cache-aside и invalidation races, expiration/eviction, RDB/AOF, asynchronous replication, Sentinel, Cluster, hot/big keys и distributed leases. Для Redlock явно зафиксированы assumptions и trade-offs; он не представлен как universal correctness primitive.
+
+Проверено по Redis official documentation и current release notes. Отдельно уточнены `WAIT`/`WAITAOF` limits, Sentinel quorum vs majority, Cluster hash slots/redirects, safe token-based unlock и `DELEX` начиная с Redis 8.4.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.
