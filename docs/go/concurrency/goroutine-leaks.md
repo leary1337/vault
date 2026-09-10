@@ -30,6 +30,8 @@ go tool pprof http://service/debug/pprof/goroutine
 
 Группируйте stacks по blocking point и связывайте их с request rate, queue depth, dependency latency и deploy version. Snapshot без временного сравнения часто показывает нормальные long-lived workers.
 
+Go 1.27 добавил профиль `goroutineleak`, который автоматически выявляет доказуемо permanently blocked goroutines на channels и поддержанных `sync` primitives. Он точнее обычного snapshot для этого subset, но не видит все логические leaks, foreign I/O или goroutines, чьи primitives остаются достижимы через live/global state.
+
 ## Предотвращение
 
 - У каждой goroutine есть owner и stop condition.
@@ -42,3 +44,4 @@ go tool pprof http://service/debug/pprof/goroutine
 
 - [Go blog: Pipelines and cancellation](https://go.dev/blog/pipelines)
 - [`runtime/pprof` package](https://pkg.go.dev/runtime/pprof)
+- [Go 1.27: Goroutine Leak Profiles](https://go.dev/blog/goroutine-leak-profiles)

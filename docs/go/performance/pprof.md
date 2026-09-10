@@ -1,101 +1,70 @@
 ---
-title: "Профилирование кода"
+title: pprof
+description: Сбор и интерпретация CPU, heap, block, mutex и goroutine profiles.
 tags:
   - go
-created: 2024-07-25
+  - performance
+  - pprof
+updated: 2026-09-10
+created: 2024-07-28
 ---
 
-# Профилирование кода
+# pprof
 
-### Описание
+Profile отвечает на конкретный вопрос о resource consumption. Сначала формулируйте симптом и временное окно, затем выбирайте profile.
 
-**Профилирование кода** — это процесс измерения производительности программы для выявления узких мест и оптимизации её работы. В Go профилирование обычно включает анализ использования процессора (CPU), памяти и других ресурсов. Основными инструментами для профилирования являются пакет `pprof` и `trace`.
-#### Поиск узких мест
+| Profile | Что показывает |
+|---|---|
+| CPU | sampled stacks во время потребления CPU |
+| heap | sampled allocations, всё ещё in-use на момент snapshot |
+| allocs | исторические allocations с момента старта |
+| goroutine | stacks текущих goroutines |
+| goroutineleak | Go 1.27: доказуемо permanently blocked goroutines на поддержанных primitives |
+| mutex | contention, attributed к месту освобождения lock |
+| block | время blocking на synchronization primitives |
+| threadcreate | stacks, приведшие к созданию OS threads |
 
-Узкие места (bottlenecks) — это части программы, которые значительно снижают её производительность. Они могут включать чрезмерное использование CPU, неэффективное использование памяти, частые блокировки или задержки ввода-вывода. Идентификация и устранение узких мест могут значительно улучшить общую производительность приложения.
+Mutex/block profiling имеет overhead и требует sampling configuration. Параллельный сбор diagnostics может искажать результаты.
 
-Для поиска узких мест используются различные методы профилирования:
-1. **Профилирование CPU** — определяет, какие части кода потребляют наибольшее количество процессорного времени.
+## HTTP endpoint
 
-2. **Профилирование памяти** — показывает, сколько памяти используется различными объектами в программе и где происходят утечки памяти.
-#### Профилирование с помощью pprof
-
-**pprof** — это стандартный пакет в Go, который предоставляет возможности профилирования CPU, памяти и других аспектов производительности. Он генерирует профили, которые затем можно анализировать с помощью инструмента командной строки `go tool pprof`.
-
-**Профилирование CPU**
-
-Для профилирования CPU нужно импортировать пакет runtime/pprof и запустить профилирование перед выполнением основного кода:
 ```go
-import (
-    "os"
-    "runtime/pprof"
-)
-
-func main() {
-    f, err := os.Create("cpu.prof")
-    if err != nil {
-        log.Fatal("could not create CPU profile: ", err)
-    }
-    defer f.Close()
-    if err := pprof.StartCPUProfile(f); err != nil {
-        log.Fatal("could not start CPU profile: ", err)
-    }
-    defer pprof.StopCPUProfile()
-
-    // Основной код программы
-}
+import _ "net/http/pprof"
 ```
-Этот код создает файл `cpu.prof`, в который записывается информация о профилировании. После выполнения программы файл можно проанализировать с помощью `go tool pprof`:
+
+Не выставляйте `/debug/pprof/` в публичную сеть. Используйте отдельный authenticated admin listener, loopback, service mesh policy или controlled port-forward.
+
 ```bash
-go tool pprof cpu.prof
+go tool pprof http://127.0.0.1:6060/debug/pprof/profile?seconds=30
+go tool pprof http://127.0.0.1:6060/debug/pprof/heap
+go tool pprof -diff_base before.pb.gz after.pb.gz
 ```
 
-**Профилирование памяти**
+В interactive pprof полезны `top`, `top -cum`, `list`, `web`. Flat cost находится в самой function; cumulative включает callees.
 
-Для профилирования памяти используется пакет `runtime/pprof` аналогичным образом. Например, чтобы создать профиль использования памяти (heap):
-```go
-f, err := os.Create("mem.prof")
-if err != nil {
-    log.Fatal("could not create memory profile: ", err)
-}
-defer f.Close()
-runtime.GC() // Принудительный сбор мусора перед снятием профиля
-if err := pprof.WriteHeapProfile(f); err != nil {
-    log.Fatal("could not write memory profile: ", err)
-}
-```
-Этот код сохраняет профиль использования памяти в файл `mem.prof`, который также можно анализировать с помощью `go tool pprof`.
-#### Профилирование с помощью trace
+## Heap: in-use и allocated
 
-**trace** — это инструмент, который предоставляет детализированную информацию о поведении программы, включая события планировщика, создание и завершение горутин, операции синхронизации и другие действия. Он позволяет глубже понять, как программа использует ресурсы и взаимодействует с ними.
+- `inuse_space` ищет current retention.
+- `alloc_space` ищет allocation churn/GC pressure.
+- `inuse_objects`/`alloc_objects` полезны для множества маленьких objects.
 
-Для создания трассировки (trace) нужно использовать пакет `runtime/trace`:
-```go
-import (
-    "os"
-    "runtime/trace"
-)
+Сохраняйте binary/source той же build версии, иначе symbolization и line mapping будут неверны.
 
-func main() {
-    f, err := os.Create("trace.out")
-    if err != nil {
-        log.Fatal("could not create trace output file: ", err)
-    }
-    defer f.Close()
+## Goroutine leak profile
 
-    if err := trace.Start(f); err != nil {
-        log.Fatal("could not start trace: ", err)
-    }
-    defer trace.Stop()
+Go 1.27 `goroutineleak` автоматически находит subset leaks: permanently blocked operations на channels и поддержанных `sync` primitives. Он намеренно не покрывает каждую логическую leak, например object, всё ещё достижимый из global state, или зависший foreign I/O. Обычный goroutine profile и временные trends остаются нужны.
 
-    // Основной код программы
-}
-```
+## Production workflow
 
-Файл `trace.out` можно анализировать с помощью команды `go tool trace`:
-```bash
-go tool trace trace.out
-```
-### Краткое содержание
+1. Зафиксировать symptom, traffic и deploy version.
+2. Снять baseline metrics и профиль репрезентативного окна.
+3. Проверить top/cumulative stacks и сопоставить с latency/resource metrics.
+4. Изменить одну гипотезу.
+5. Сравнить profile/benchmark до и после.
 
-**Профилирование кода** в Go с помощью инструментов `pprof` и `trace` помогает выявлять узкие места и оптимизировать использование ресурсов. `pprof` используется для профилирования CPU и памяти, в то время как `trace` предоставляет детализированную информацию о работе программы.
+## Источники
+
+- [Go diagnostics](https://go.dev/doc/diagnostics)
+- [`runtime/pprof`](https://pkg.go.dev/runtime/pprof)
+- [`net/http/pprof`](https://pkg.go.dev/net/http/pprof)
+- [Go 1.27 goroutine leak profiles](https://go.dev/blog/goroutine-leak-profiles)

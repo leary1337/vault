@@ -44,10 +44,12 @@ left, right = right, left
 ## `new` и `make`
 
 - `new(T)` выделяет zero value типа `T` и возвращает `*T`.
+- С Go 1.26 `new(expr)` также создаёт variable типа expression, инициализированную его значением, и возвращает pointer.
 - `make` инициализирует только slice, map или channel и возвращает значение самого типа, не pointer.
 
 ```go
 p := new(int)             // *int, *p == 0
+limit := new(int64(300))  // Go 1.26+: *int64, *limit == 300
 s := make([]int, 0, 16)   // готовый slice
 m := make(map[string]int) // готовая map
 ch := make(chan int, 8)   // buffered channel
@@ -129,4 +131,5 @@ const (
 
 - [The Go Programming Language Specification](https://go.dev/ref/spec)
 - [Effective Go: allocation with `new` and `make`](https://go.dev/doc/effective_go#allocation_new)
+- [Go 1.26 Release Notes: initialized `new`](https://go.dev/doc/go1.26#language)
 - [Go 1.27 Release Notes](https://go.dev/doc/go1.27)

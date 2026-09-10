@@ -39,10 +39,16 @@
     * [Обзор runtime](go/runtime/runtime-overview.md)
     * [Компиляция](go/runtime/compilation.md)
     * [Scheduler](go/runtime/scheduler.md)
+    * [Netpoller](go/runtime/netpoller.md)
     * [Управление памятью](go/runtime/memory-management.md)
     * [Garbage collector](go/runtime/garbage-collector.md)
   * [Производительность](go/performance/README.md)
     * [pprof](go/performance/pprof.md)
+    * [Runtime trace](go/performance/runtime-trace.md)
+    * [Benchmarks](go/performance/benchmarks.md)
+    * [Escape analysis](go/performance/escape-analysis.md)
+    * [Race detector](go/performance/race-detector.md)
+    * [PGO](go/performance/pgo.md)
 
 ## Данные и messaging
 
