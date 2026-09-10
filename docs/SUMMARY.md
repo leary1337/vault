@@ -302,3 +302,18 @@
   * [TLS](security/tls.md)
   * [Secrets management](security/secrets.md)
   * [Backend security controls](security/backend-security.md)
+
+## Production
+
+* [Production engineering](production/README.md)
+  * [Incident response](production/incident-response.md)
+  * [High CPU](production/high-cpu.md)
+  * [High memory](production/high-memory.md)
+  * [Memory leak](production/memory-leak.md)
+  * [Goroutine leak](production/goroutine-leak.md)
+  * [High latency](production/high-latency.md)
+  * [Database overload](production/database-overload.md)
+  * [Kafka consumer lag](production/kafka-lag.md)
+  * [Connection pool exhaustion](production/connection-pool-exhaustion.md)
+  * [Retry storm](production/retry-storm.md)
+  * [Thundering herd](production/thundering-herd.md)

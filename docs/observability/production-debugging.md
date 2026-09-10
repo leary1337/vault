@@ -40,7 +40,7 @@ Metrics отвечают «когда и насколько», traces — «ка
 | высокая нагрузка | request amplification, retries, hot key/partition, CPU throttling |
 | backlog | arrival/processing rate, oldest age, consumer health |
 
-Конкретные сценарии продолжены в следующем разделе базы — Production runbooks.
+Конкретные сценарии продолжены в разделе [Production runbooks](../production/README.md).
 
 ## Источники
 

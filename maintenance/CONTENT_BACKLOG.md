@@ -19,7 +19,7 @@
 | System Design | P1 | DONE | 15-step process, 17 fundamentals и 10 cases |
 | Algorithms | P1 | DONE | 17 patterns + complexity + 10 annotated Go examples |
 | Linux, Docker, Kubernetes | P1 | DONE | Linux ops, Docker rewrite, Kubernetes 1.37 lifecycle/resources |
-| Observability и production | P0 | IN PROGRESS | Observability/SLO готовы; production incident runbooks — следующий этап |
+| Observability и production | P0 | DONE | Signals/SLO + ordered diagnostic incident runbooks |
 | Backend architecture и security | P1 | DONE | Boundaries/trade-offs; OWASP Top 10:2025, ASVS и IETF BCP |
 | Practice project | P2 | TODO | Reference roadmap, не приложение в docs repo |
 | Interview references | P2 | TODO | Только публичная актуальная информация |
