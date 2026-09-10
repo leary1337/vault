@@ -290,3 +290,15 @@
   * [API design](backend-architecture/api-design.md)
   * [Monolith vs microservices](backend-architecture/monolith-vs-microservices.md)
   * [Modular monolith](backend-architecture/modular-monolith.md)
+
+## Security
+
+* [Backend security](security/README.md)
+  * [Authentication](security/authentication.md)
+  * [Authorization](security/authorization.md)
+  * [OAuth 2.0 и OpenID Connect](security/oauth2-and-oidc.md)
+  * [JWT](security/jwt.md)
+  * [Passwords](security/passwords.md)
+  * [TLS](security/tls.md)
+  * [Secrets management](security/secrets.md)
+  * [Backend security controls](security/backend-security.md)
