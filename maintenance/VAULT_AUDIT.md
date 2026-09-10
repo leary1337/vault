@@ -91,3 +91,4 @@
 - 2026-09-10 — Batch 5c: добавлены 14 backend pattern guides с единым шаблоном guarantees/failures/trade-offs и cross-links на основные разделы.
 - 2026-09-10 — Batch 6a: четыре monolithic System Design dictionaries заменены 17 fundamentals, process framework и 10 case studies; старые duplicates удалены из docs и доступны в Git history.
 - 2026-09-10 — Batch 6b: добавлены algorithm patterns и 10 Go interview examples с complexity/edge-case review; compilation отложена из-за отсутствия Go toolchain.
+- 2026-09-10 — Batch 7a: добавлен Linux backend minimum с cgroup v2 и ordered diagnostic workflow на основе man-pages/kernel docs.

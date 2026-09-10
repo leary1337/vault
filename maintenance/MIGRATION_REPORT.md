@@ -102,6 +102,12 @@ Cases покрывают URL shortener, rate limiter, notifications, counters, f
 
 Go page содержит 10 annotated examples из спецификации: in-place deduplication, intervals, Unicode-aware sliding window, lower bound, Top K/heap, BFS/DFS, LRU и cancellable worker pool. Go toolchain на машине отсутствует, поэтому compilation validation остаётся недоступной; syntax и edge cases проверены вручную.
 
+## Batch 7a — Linux
+
+Создан Linux minimum из 14 страниц: process/thread/syscall, FD/signals, virtual memory/RSS/page cache, sockets/epoll, CPU/load average, cgroup v2, namespaces и ordered debugging workflow. Команды `ps`, `top`/`htop`, `ss`, `lsof`, `strace`, `perf`, `vmstat`, `iostat`, `free` и `dmesg` встроены в диагностический контекст, а не перечислены без цели.
+
+Материал проверен по актуальным Linux man-pages и kernel documentation; отдельно разведены syscall vs context switch, RSS vs cgroup memory, CPU utilization vs load average и cgroup quota throttling.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.
