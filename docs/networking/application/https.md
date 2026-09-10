@@ -1,37 +1,34 @@
 ---
-title: "HTTPS"
-tags:
-  - networking
-created: 2024-07-24
+title: HTTPS
+description: HTTP over TLS, origin authentication, termination и browser security boundaries.
+tags: [networking, https, security]
+updated: 2026-09-10
 ---
 
 # HTTPS
 
-### Описание
+HTTPS — HTTP semantics поверх TLS-secured connection. URL scheme `https` определяет secure origin и default port 443; negotiated wire protocol может быть HTTP/1.1, HTTP/2 или HTTP/3.
 
-**HTTPS (HyperText Transfer Protocol Secure)** — это защищённая версия [HTTP](http-1-1.md), обеспечивающая безопасную передачу данных между клиентом и сервером. HTTPS использует [TLS SSL](tls.md) для шифрования данных. Основная цель HTTPS — защитить данные от перехвата и модификации.
-#### Как работает HTTPS?
+## Что защищено
 
-1. **Установка соединения:**
-    - При использовании HTTP клиент устанавливает соединение с сервером через TCP и отправляет запрос в текстовом формате, например, GET-запрос для получения веб-страницы.
-    - В HTTPS соединение сначала устанавливается через TCP, а затем через TLS. Сервер и клиент обмениваются сообщениями для установления защищенного соединения.
-2. **Порты:**
-    - HTTP обычно работает на порту 80, тогда как HTTPS использует порт 443.
-3. **Процесс установления защищенного соединения:**
-    - Клиент отправляет запрос на установление TLS-сессии, а сервер отвечает, устанавливая защищённое соединение. После этого передача данных происходит уже через защищённое соединение.
+При корректной validation TLS защищает HTTP content от чтения/изменения на пути и аутентифицирует server identity по certificate. Он не скрывает все metadata, не защищает compromised endpoint и не заменяет authentication/authorization/input validation.
 
-#### Стандарты и спецификации
+Для HTTP/1.1/2 обычно выполняются DNS → TCP → TLS → HTTP. HTTP/3 использует QUIC+TLS поверх UDP. Reuse/resumption уменьшает setup cost; измеряйте cold/reconnect path отдельно.
 
-- **RFC 2818 (2000 год):** Описывает использование HTTP поверх TLS. Указывает, как устанавливать защищённое соединение без изменений в сам протокол HTTP.
-- **Другие методы обеспечения безопасности:**
-    - **RFC 2817 (2000 год):** Описывает механизм перехода с HTTP на HTTPS на стандартном порту 80 с использованием заголовка Upgrade.
-    - **RFC 2660 (1999 год):** Описывает протокол S-HTTP, который не получил широкого распространения.
+## Termination
 
-#### Преимущества HTTPS
+TLS может завершаться на edge/load balancer. Тогда proxy видит plaintext и становится trust boundary; hop до backend защищают согласно threat model (TLS/mTLS/network isolation). Forwarded scheme/client-IP headers edge очищает, backend доверяет только известному proxy.
 
-- **Шифрование данных:** Все данные между клиентом и сервером шифруются, что защищает их от перехвата.
-- **Аутентификация:** Подтверждение подлинности сервера, с которым общается клиент.
-- **Целостность данных:** Защита от изменения передаваемых данных.
-### Краткое содержание
+Reverse proxy может использовать другую HTTP version к upstream, поэтому client-side HTTP/3 не означает HTTP/3 во всём path. Certificate/SNI относятся к каждому TLS hop отдельно.
 
-**HTTPS** — это не отдельный протокол, а скорее вариант использования *HTTP* с дополнительным уровнем безопасности через *TLS*. Это стандарт для передачи веб-страниц, обеспечивающий защиту данных пользователей.
+## Browser controls
+
+HSTS заставляет browser использовать HTTPS для host после получения policy; `includeSubDomains`/preload требуют готовности всех names. Secure cookie ограничивает отправку HTTPS, HttpOnly закрывает JavaScript access, SameSite влияет на cross-site sending — ни один attribute не заменяет остальные controls.
+
+Mixed content и insecure redirects снижают protection. Secrets/tokens не помещают в URL даже под HTTPS: URL остаётся в application/proxy logs, history и analytics.
+
+## Источники
+
+- [HTTP Semantics, RFC 9110](https://www.rfc-editor.org/rfc/rfc9110)
+- [HSTS, RFC 6797](https://www.rfc-editor.org/rfc/rfc6797)
+- [TLS](tls.md)

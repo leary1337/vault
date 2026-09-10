@@ -149,6 +149,12 @@
     * [HTTP/3](networking/application/http-3.md)
     * [TLS](networking/application/tls.md)
     * [HTTPS](networking/application/https.md)
+  * [Networking для backend](networking/backend/README.md)
+    * [Connection lifecycle](networking/backend/connection-lifecycle.md)
+    * [DNS и TLS на critical path](networking/backend/dns-and-tls.md)
+    * [HTTP multiplexing и HOL](networking/backend/http-multiplexing.md)
+    * [Reverse proxy и load balancing](networking/backend/proxies-and-load-balancing.md)
+    * [Network troubleshooting](networking/backend/troubleshooting.md)
 
 ## Проектирование и эксплуатация
 

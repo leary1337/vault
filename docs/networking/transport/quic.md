@@ -1,37 +1,32 @@
 ---
-title: "QUIC"
-tags:
-  - networking
-created: 2024-07-24
+title: QUIC
+description: Secure multiplexed transport over UDP, streams, loss recovery и migration.
+tags: [networking, quic, transport]
+updated: 2026-09-10
 ---
 
 # QUIC
 
-### Описание
+IETF QUIC — secure connection-oriented transport поверх UDP. Он интегрирует TLS 1.3, reliable streams, stream/connection flow control, loss recovery и congestion control. HTTP/3 отображает HTTP semantics на QUIC.
 
-**QUIC (Quick UDP Internet Connections)** — это современный транспортный протокол, разработанный компанией Google и стандартизированный IETF. QUIC использует [UDP](udp.md) вместо TCP и включает встроенные механизмы для улучшения скорости и безопасности интернет-соединений. Протокол QUIC используется в [HTTP/3](../application/http-3.md), обеспечивая высокую производительность и низкую задержку.
-#### Ключевые особенности QUIC:
+## Streams и loss
 
-- **Быстрое установление соединения**: QUIC использует минимальное количество сообщений для установки соединения, что сокращает задержки по сравнению с [TCP](tcp.md). В большинстве случаев соединение устанавливается за одно рукопожатие.
-    
-- **Мультиплексирование потоков**: QUIC позволяет передавать несколько потоков данных одновременно по одному соединению без блокировки, которая возможна в [TCP](tcp.md). Это устраняет проблему "head-of-line blocking", где задержка одного потока может блокировать другие.
-    
-- **Встроенное шифрование**: Все соединения QUIC зашифрованы по умолчанию, что обеспечивает защиту от прослушивания и атак типа «человек посередине» (MITM).
-    
-- **Устойчивость к изменению сетевых условий**: QUIC поддерживает быструю адаптацию к изменениям в сети, таким как смена IP-адресов или сетей, что делает его особенно полезным для мобильных устройств.
-    
-- **Контроль перегрузки и восстановление потерь**: QUIC включает усовершенствованные механизмы управления перегрузкой и восстановления потерь, обеспечивая стабильное и быстрое соединение даже при высокой потере пакетов.
-#### Применение и преимущества QUIC:
+Bytes внутри одного stream доставляются упорядоченно; разные streams независимы по delivery. Потеря packet с данными stream A не должна блокировать выдачу уже полученных данных stream B, хотя congestion controller и connection resources общие. Unreliable application messages требуют QUIC DATAGRAM extension, а не обычного stream.
 
-- **Ускорение загрузки веб-страниц**: За счет быстрого установления соединений и мультиплексирования потоков, QUIC значительно сокращает время загрузки веб-страниц.
-- **Повышенная безопасность**: Встроенное шифрование и защита от атак улучшают безопасность передаваемых данных.
-- **Поддержка современных веб-приложений**: QUIC оптимизирован для использования в условиях современных веб-приложений, обеспечивая низкую задержку и высокую производительность.
+QUIC packets защищены cryptographically, connection IDs позволяют пережить некоторые изменения network path/NAT rebinding. Migration не гарантирует отсутствие interruption и может быть отключена policy.
 
-### Совместимость и внедрение
+## Establishment
 
-- **Браузеры и серверы**: Поддержка QUIC имеется в большинстве современных браузеров, включая Chrome, Firefox и Edge. Серверная поддержка также активно развивается.
-- **Интеграция с HTTP/3**: QUIC является основой для [HTTP/3](../application/http-3.md), что делает его важным компонентом современной веб-инфраструктуры.
+Initial handshake совмещает transport и TLS 1.3 setup, обычно позволяя 1-RTT establishment. Resumption может сократить стоимость. 0-RTT data уязвимы к replay и разрешаются только для replay-safe application semantics.
 
-### Краткое содержание
+## Operations
 
-**QUIC (Quick UDP Internet Connections)** — это транспортный протокол, использующий UDP для обеспечения быстрого установления соединений, мультиплексирования потоков и встроенного шифрования. QUIC значительно улучшает производительность и безопасность сетевых соединений, особенно в контексте HTTP/3.
+UDP может блокироваться или ограничиваться middlebox-ами, поэтому clients обычно имеют discovery/fallback. Наблюдайте negotiated version, handshake/fallback, RTT/loss, stream resets, flow-control blocking и connection migration. Не сравнивайте QUIC с TCP только по ping: важны loss, reuse, CPU и request mix.
+
+Connection/stream IDs и encrypted headers усложняют традиционный network inspection; endpoint telemetry становится важнее. Load balancer должен корректно маршрутизировать QUIC connection IDs и поддерживать выбранную retry/token policy.
+
+## Источники
+
+- [QUIC transport, RFC 9000](https://www.rfc-editor.org/rfc/rfc9000)
+- [QUIC loss detection and congestion control, RFC 9002](https://www.rfc-editor.org/rfc/rfc9002)
+- [QUIC DATAGRAM, RFC 9221](https://www.rfc-editor.org/rfc/rfc9221)

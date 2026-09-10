@@ -1,40 +1,30 @@
 ---
-title: "HTTP 2"
-tags:
-  - networking
-created: 2024-07-24
+title: HTTP/2
+description: Binary framing, multiplexed streams, HPACK и flow control поверх TCP.
+tags: [networking, http2]
+updated: 2026-09-10
 ---
 
-# HTTP 2
+# HTTP/2
 
-### Описание
+HTTP/2 сохраняет HTTP semantics, но использует binary frames и multiplexed streams на connection. Для HTTPS protocol обычно выбирается через TLS ALPN `h2`; cleartext deployment имеет отдельные discovery/upgrade constraints.
 
-**HTTP/2** — это вторая основная версия протокола HTTP, утвержденная в 2015 году. Основная цель HTTP/2 — улучшить производительность и эффективность передачи данных в Интернете, устраняя ограничения и недостатки предыдущей версии HTTP/1.1.
+## Frames и streams
 
-#### Ключевые особенности и улучшения HTTP/2:
+Каждый request/response занимает stream; frames разных streams interleave-ятся. Stream имеет state и identifier. Connection-level frames управляют settings, flow control и shutdown; `GOAWAY` сообщает, какие новые streams peer больше не обработает, что важно для safe retry.
 
-- **Мультиплексирование**: Позволяет нескольким запросам и ответам передаваться по одному [TCP](../transport/tcp.md)-соединению одновременно, что уменьшает время загрузки страниц и увеличивает пропускную способность.
-    
-- **Сжатие заголовков (HPACK)**: Использует алгоритм сжатия для уменьшения размера HTTP-заголовков, что снижает объем передаваемых данных и повышает эффективность передачи.
-    
-- **Приоритизация запросов**: Сервер может определять приоритеты для различных запросов, что позволяет более важным данным передаваться быстрее.
-    
-- **Бинарный формат**: HTTP/2 использует бинарный формат вместо текстового, что ускоряет обработку и передачу данных.
-    
-- **Постоянные соединения**: Поддерживает установление постоянных соединений, что позволяет серверу отправлять несколько ответов на один запрос без необходимости повторного установления соединения.
-    
-- **Server Push**: Сервер может отправлять данные клиенту до того, как они будут запрошены, что улучшает загрузку страниц и уменьшает задержки.
-### Применение и преимущества
+HPACK сжимает fields через static/dynamic tables. Limits на header list/table необходимы против memory/CPU abuse. Binary framing не меняет header/body security semantics.
 
-- **Производительность**: Увеличивает скорость загрузки веб-страниц за счет улучшенной передачи данных и уменьшения задержек.
-- **Эффективность**: Оптимизация использования сетевых ресурсов благодаря мультиплексированию и сжатию заголовков.
-- **Совместимость**: HTTP/2 обратно совместим с HTTP/1.1, что позволяет использовать его на существующей инфраструктуре.
+## Flow control
 
-### Совместимость и переход на HTTP/2
+Receiver выдаёт credit на stream и connection. Если application не читает body или не обновляет windows, sender останавливается. Flow control HTTP/2 не заменяет TCP congestion control и application backpressure.
 
-- **Браузеры**: Большинство современных веб-браузеров поддерживают HTTP/2.
-- **Серверы**: Поддержка HTTP/2 может быть включена на большинстве серверных платформ.
+Multiplexing убирает HTTP/1.1 response-order blocking, но TCP выдаёт единый ordered byte stream: потеря segment задерживает bytes всех HTTP/2 streams. Это transport-level head-of-line blocking.
 
-### Краткое содержание
+## Production
 
-**HTTP/2** — это улучшенная версия протокола HTTP, которая повышает производительность и эффективность передачи данных в Интернете за счет мультиплексирования, сжатия заголовков и бинарного формата. Он предоставляет улучшенные возможности для управления соединениями и приоритизации запросов.
+Проверяйте max concurrent streams, connection count/age, resets, `GOAWAY`, flow-control stalls, ping/idle policy и graceful drain. Одна connection может стать shared blast radius; client pool иногда использует несколько. Не включайте proxy retries для streamed/non-idempotent request без protocol-aware replay safety.
+
+## Источник
+
+- [HTTP/2, RFC 9113](https://www.rfc-editor.org/rfc/rfc9113)

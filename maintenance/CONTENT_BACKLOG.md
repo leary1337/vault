@@ -14,7 +14,7 @@
 | PostgreSQL | P0 | DONE | PostgreSQL 18: internals, queries, concurrency и operations |
 | Redis | P1 | DONE | Redis 8.10: caching, memory, durability, HA, Cluster и locks |
 | Kafka и messaging patterns | P0 | DONE | Kafka 4.3 KRaft, producer/consumer, EOS, Outbox/Inbox |
-| Networking | P1 | TODO | Проверить факты, убрать критическую зависимость от external images |
+| Networking | P1 | DONE | Core protocols перепроверены по RFC; backend connections добавлены; external images удалены |
 | Distributed systems и backend patterns | P0 | DONE | Consistency/failures + 14 reliability/data patterns |
 | System Design | P1 | DONE | 15-step process, 17 fundamentals и 10 cases |
 | Algorithms | P1 | DONE | 17 patterns + complexity + 10 annotated Go examples |

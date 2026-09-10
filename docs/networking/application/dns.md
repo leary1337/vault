@@ -1,29 +1,34 @@
 ---
-title: "DNS"
-tags:
-  - networking
-created: 2024-07-23
+title: DNS
+description: Иерархическая система имён, recursive resolution, caching и backend failure modes.
+tags: [networking, dns]
+updated: 2026-09-10
 ---
 
 # DNS
 
-### Описание
+DNS — distributed hierarchical database, сопоставляющая names с typed records. Authoritative server хранит данные zone; recursive resolver выполняет/кэширует поиск от имени client-а. Stub resolver приложения обычно обращается к настроенному recursive service.
 
-**DNS (Domain Name System)** — это система, используемая для преобразования доменных имен в IP-адреса, например, `habr.com` в `178.248.237.68`. DNS играет ключевую роль в работе Интернета, обеспечивая удобство использования и управление сетью.
+## Resolution и records
 
-![](https://i.imgur.com/iyA62U6.png)
+Для имени могут использоваться `A`/`AAAA`, alias `CNAME`, mail `MX`, service metadata `SRV`, delegation `NS`, policy/text `TXT`. Alias и target создают несколько lookup/cache steps. DNS не проверяет, что application на returned IP готово.
 
-#### Преимущества DNS:
+Resolver кэширует ответ по TTL. Negative response тоже может кэшироваться по SOA-defined semantics. TTL не гарантирует одновременное обновление клиентов: lookup мог выполняться раньше, а существующий pooled connection вообще не делает новый DNS query.
 
-- **Понятные человеку имена**: Пользователи могут использовать легко запоминаемые имена вместо числовых IP-адресов.
-- **Гибкость управления сетью**: Изменение IP-адреса сервера не требует изменения доменного имени, что упрощает управление сетевой инфраструктурой.
+UDP широко используется, но response с truncation ведёт к TCP; zone transfers используют TCP, а encrypted DNS может идти по TLS/HTTPS/QUIC. Нельзя диагностировать DNS только одним transport assumption.
 
-#### Особенности DNS:
+## Consistency и изменения
 
-- **Распределенная система**: DNS является распределенной системой, без единого централизованного сервера. Это повышает отказоустойчивость и масштабируемость системы.
-- **Делегирование ответственности**: Пространство имен разделено на отдельные домены. Каждая организация или администратор домена отвечает за определенный домен и его поддомены, что облегчает управление и обновление записей.
-- **Надежность**: Для обеспечения высокой доступности и отказоустойчивости используются резервные DNS-серверы. Если один сервер выходит из строя, другой берет на себя его функции.
+До смены endpoint-а уменьшите TTL заранее, затем учитывайте старые cache entries и connection draining. После change наблюдайте queries/answers и connect success по returned IP. Round-robin ordering не гарантирует равномерный request balancing из-за caches, address selection и connection reuse.
 
-### Краткое содержание
+DNSSEC даёт origin authentication/integrity DNS data, но не шифрует queries и не заменяет TLS certificate validation. Split-horizon/search suffix и `/etc/hosts` могут дать разные ответы в pod, node и laptop.
 
-**DNS (Domain Name System)** — система, обеспечивающая преобразование доменных имен в IP-адреса. Она улучшает удобство использования Интернета и позволяет легко управлять сетевой инфраструктурой, оставаясь устойчивой к отказам благодаря своей распределенной архитектуре и резервированию серверов.
+## Диагностика
+
+Различайте `NXDOMAIN`, `SERVFAIL`, timeout и empty/no-data response. Фиксируйте resolver, queried name/type, response code, TTL, addresses, latency и затем connect/TLS outcome. Подробнее: [DNS и TLS на critical path](../backend/dns-and-tls.md).
+
+## Источники
+
+- [DNS concepts, RFC 1034](https://www.rfc-editor.org/rfc/rfc1034)
+- [DNS implementation, RFC 1035](https://www.rfc-editor.org/rfc/rfc1035)
+- [Negative caching, RFC 2308](https://www.rfc-editor.org/rfc/rfc2308)
