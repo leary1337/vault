@@ -266,3 +266,14 @@
     * [Graceful shutdown](containers/kubernetes/graceful-shutdown.md)
     * [Networking](containers/kubernetes/networking.md)
     * [Troubleshooting](containers/kubernetes/troubleshooting.md)
+
+## Observability
+
+* [Observability](observability/README.md)
+  * [Metrics](observability/metrics.md)
+  * [Logs](observability/logs.md)
+  * [Distributed tracing](observability/tracing.md)
+  * [OpenTelemetry](observability/opentelemetry.md)
+  * [SLI, SLO и SLA](observability/sli-slo-sla.md)
+  * [Alerting](observability/alerting.md)
+  * [Production debugging](observability/production-debugging.md)

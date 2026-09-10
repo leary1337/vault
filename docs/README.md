@@ -10,7 +10,7 @@ updated: 2026-09-10
 
 Это постоянно обновляемая база знаний для Go backend-разработчиков уровня Middle+ и Senior. Она подходит для последовательного изучения, быстрого повторения, разбора production-механизмов и подготовки к техническим обсуждениям.
 
-Сейчас в базе доступны мигрированные материалы по [Go](go/README.md), [базам данных](databases/README.md), [Kafka](messaging/README.md), [сетям](networking/README.md), [System Design](system-design/README.md) и [контейнерам](containers/README.md). Страницы проходят повторный технический аудит по приоритетам, поэтому глубина разделов пока различается.
+Сейчас в базе доступны материалы по [Go](go/README.md), [базам данных](databases/README.md), [Kafka](messaging/README.md), [сетям](networking/README.md), [распределённым системам](distributed-systems/README.md), [backend patterns](backend-patterns/README.md), [System Design](system-design/README.md), [Linux](linux/README.md), [контейнерам](containers/README.md) и [observability](observability/README.md). Страницы проходят повторный технический аудит по приоритетам, поэтому глубина разделов пока различается.
 
 ## Как читать
 
