@@ -90,6 +90,12 @@ Runtime-материалы переписаны для Go 1.27: G-M-P без mag
 
 Дублирование с database/messaging/distributed sections ограничено короткими прикладными summaries и cross-links; каждый pattern явно описывает, какую проблему он не решает.
 
+## Batch 6a — System Design
+
+Четыре старые словарные страницы (~160 KB) заменены 17 небольшими fundamentals, общим 15-шаговым design process и 10 case studies. Старые файлы удалены из `docs/` после переноса тем; они остаются восстановимыми из Git history.
+
+Cases покрывают URL shortener, rate limiter, notifications, counters, file storage, chat, feed, autocomplete, favorites и classifieds. Каждый разбор включает requirements, paths, failure modes, alternatives и trade-offs вместо одной «правильной» схемы.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.
