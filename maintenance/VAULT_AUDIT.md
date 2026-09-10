@@ -88,3 +88,4 @@
 - 2026-09-10 — Batch 4b: добавлен Redis 8.10 section с caching, TTL/eviction, persistence, replication, Sentinel, Cluster, locks и hot-key operations.
 - 2026-09-10 — Batch 5a: legacy Kafka note заменена в public navigation на Kafka 4.3 KRaft-only guide; добавлены Outbox и Inbox.
 - 2026-09-10 — Batch 5b: добавлен distributed-systems section; CAP oversimplification в исходном DB fundamental исправлен и связан с PACELC.
+- 2026-09-10 — Batch 5c: добавлены 14 backend pattern guides с единым шаблоном guarantees/failures/trade-offs и cross-links на основные разделы.

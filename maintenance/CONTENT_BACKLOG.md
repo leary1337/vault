@@ -15,8 +15,8 @@
 | Redis | P1 | DONE | Redis 8.10: caching, memory, durability, HA, Cluster и locks |
 | Kafka и messaging patterns | P0 | DONE | Kafka 4.3 KRaft, producer/consumer, EOS, Outbox/Inbox |
 | Networking | P1 | TODO | Проверить факты, убрать критическую зависимость от external images |
-| Distributed systems и backend patterns | P0 | IN PROGRESS | Distributed systems готовы; backend patterns следующий sub-batch |
-| System Design | P1 | TODO | Разделить четыре большие заметки на связанные страницы |
+| Distributed systems и backend patterns | P0 | DONE | Consistency/failures + 14 reliability/data patterns |
+| System Design | P1 | IN PROGRESS | Разделить четыре большие заметки на связанные страницы |
 | Algorithms | P1 | TODO | Паттерны и Go examples без dump решений |
 | Linux, Docker, Kubernetes | P1 | TODO | Docker переписать с нуля |
 | Observability и production | P0 | TODO | Диагностический порядок и SLO/error budgets |

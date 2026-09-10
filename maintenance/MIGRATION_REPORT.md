@@ -84,6 +84,12 @@ Runtime-материалы переписаны для Go 1.27: G-M-P без mag
 
 Страницы построены вокруг явных scope и failure assumptions; использованы первичные papers Raft/Paxos, Dynamo, Spanner, Lamport clocks, linearizability, PACELC и Sagas.
 
+## Batch 5c — Backend patterns
+
+Создан каталог из 15 страниц с единым decision-oriented форматом: problem, mechanism, guarantees, failure modes, trade-offs, when not to use и example. Покрыты idempotency/retries/jitter, circuit breaker/bulkhead, rate limiting/load shedding/backpressure, Saga/Outbox/CQRS, cache-aside/singleflight и fenced distributed locks.
+
+Дублирование с database/messaging/distributed sections ограничено короткими прикладными summaries и cross-links; каждый pattern явно описывает, какую проблему он не решает.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.
