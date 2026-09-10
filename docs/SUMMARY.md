@@ -277,3 +277,16 @@
   * [SLI, SLO и SLA](observability/sli-slo-sla.md)
   * [Alerting](observability/alerting.md)
   * [Production debugging](observability/production-debugging.md)
+
+## Backend architecture
+
+* [Backend architecture](backend-architecture/README.md)
+  * [Layered architecture](backend-architecture/layered-architecture.md)
+  * [Hexagonal architecture](backend-architecture/hexagonal-architecture.md)
+  * [Clean Architecture](backend-architecture/clean-architecture.md)
+  * [Dependency injection](backend-architecture/dependency-injection.md)
+  * [Repository pattern](backend-architecture/repository-pattern.md)
+  * [Service Layer](backend-architecture/service-layer.md)
+  * [API design](backend-architecture/api-design.md)
+  * [Monolith vs microservices](backend-architecture/monolith-vs-microservices.md)
+  * [Modular monolith](backend-architecture/modular-monolith.md)

@@ -20,7 +20,7 @@
 | Algorithms | P1 | DONE | 17 patterns + complexity + 10 annotated Go examples |
 | Linux, Docker, Kubernetes | P1 | DONE | Linux ops, Docker rewrite, Kubernetes 1.37 lifecycle/resources |
 | Observability и production | P0 | IN PROGRESS | Observability/SLO готовы; production incident runbooks — следующий этап |
-| Backend architecture и security | P1 | TODO | Boundaries/trade-offs, OWASP primary sources |
+| Backend architecture и security | P1 | IN PROGRESS | Architecture boundaries готовы; security проверяется по OWASP/IETF |
 | Practice project | P2 | TODO | Reference roadmap, не приложение в docs repo |
 | Interview references | P2 | TODO | Только публичная актуальная информация |
 | Final cross-links и content quality review | P0 | TODO | Устранить дубли, external images и unsupported claims |
