@@ -72,6 +72,12 @@ Runtime-материалы переписаны для Go 1.27: G-M-P без mag
 
 Проверено по Redis official documentation и current release notes. Отдельно уточнены `WAIT`/`WAITAOF` limits, Sentinel quorum vs majority, Cluster hash slots/redirects, safe token-based unlock и `DELEX` начиная с Redis 8.4.
 
+## Batch 5a — Kafka и messaging reliability
+
+Старая монолитная Kafka page оставлена как скрытый legacy source, а публичный раздел переписан в 10 проверенных страниц для Apache Kafka 4.3.1. Current architecture описана как KRaft-only; уточнены sticky/adaptive unkeyed partitioning, `acks=all` относительно текущего ISR, default idempotence, classic/new consumer protocols, share groups, Kafka EOS boundaries и operations.
+
+Добавлены Transactional Outbox и Inbox/deduplication с polling/CDC, Debezium, stable event ID и atomic database patterns. Материал проверен по Kafka 4.3 documentation, official release notes/KIPs и Debezium documentation.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.

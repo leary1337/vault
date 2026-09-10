@@ -110,6 +110,17 @@
     * [Hot keys](databases/redis/hot-keys.md)
 * [Messaging](messaging/README.md)
   * [Kafka](messaging/kafka/README.md)
+    * [Архитектура](messaging/kafka/architecture.md)
+    * [Topics, partitions и replication](messaging/kafka/topics-partitions-replication.md)
+    * [Producer](messaging/kafka/producer.md)
+    * [Consumer](messaging/kafka/consumer.md)
+    * [Consumer groups](messaging/kafka/consumer-groups.md)
+    * [Delivery semantics](messaging/kafka/delivery-semantics.md)
+    * [Transactions](messaging/kafka/transactions.md)
+    * [KRaft](messaging/kafka/kraft.md)
+    * [Operations](messaging/kafka/operations.md)
+  * [Transactional Outbox](messaging/transactional-outbox.md)
+  * [Inbox и deduplication](messaging/inbox-pattern.md)
 
 ## Сети
 
