@@ -1,0 +1,86 @@
+---
+title: "Методы"
+tags:
+  - go
+created: 2024-07-24
+---
+
+# Методы
+
+### Описание
+
+**Методы в Go (Golang)** — это [функции](functions.md), которые имеют *получателя (receiver)*. Получателем может быть любой тип, включая структуры. Методы позволяют связывать определенные функции с типами данных, что улучшает организацию кода и его читаемость.
+#### Определение метода
+
+Методы определяются так же, как и функции, но с добавлением получателя перед именем метода. Получатель указывается в скобках, и это позволяет методу «знать», к какому типу он относится.
+```go
+package main
+
+import "fmt"
+
+type Person struct {
+    Name string
+    Age  int
+}
+
+func (p Person) Greet() {
+    fmt.Printf("Hello, my name is %s and I am %d years old.\n", p.Name, p.Age)
+}
+
+func main() {
+    person := Person{Name: "John", Age: 30}
+    person.Greet() // Вызов метода Greet
+}
+```
+
+В примере выше мы создаем структуру Person с полями Name и Age, а также метод Greet, который выводит приветственное сообщение. Метод Greet привязан к типу Person через получателя p Person.
+#### Значение и указатель как получатели
+
+Методы могут использовать как значение, так и указатель в качестве получателя. Это важно для управления изменениями состояния объекта.
+
+**Методы со значением как получателем**:
+	При передаче значения, метод работает с копией данных, и любые *изменения не влияют* на оригинальный объект.
+
+```go
+func (p Person) CelebrateBirthday() {
+    p.Age++
+    fmt.Println("Inside method with value receiver:", p.Age)
+}
+
+func main() {
+    p := Person{Name: "Alice", Age: 40}
+    p.CelebrateBirthday()
+    fmt.Println("After method call with value receiver:", p.Age)
+}
+```
+
+Вывод:
+```
+Inside method with value receiver: 41
+After method call with value receiver: 40
+```
+
+**Методы с указателем как получателем**:
+	При использовании указателя метод *может изменять* состояние объекта, поскольку работает с оригинальными данными.
+
+```go
+func (p *Person) CelebrateBirthday() {
+    p.Age++
+    fmt.Println("Inside method with pointer receiver:", p.Age)
+}
+
+func main() {
+    p := Person{Name: "Bob", Age: 40}
+    p.CelebrateBirthday()
+    fmt.Println("After method call with pointer receiver:", p.Age)
+}
+```
+
+Вывод:
+```
+Inside method with pointer receiver: 41
+After method call with pointer receiver: 41
+```
+### Краткое содержание
+
+**Методы в Go** — это функции, привязанные к определенным типам данных через получателя. *Получателем может быть либо значение, либо указатель*, что влияет на то, как метод взаимодействует с данными. Методы помогают структурировать код и придают логичность его организации.
