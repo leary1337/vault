@@ -37,6 +37,21 @@ Batch 1 завершён. 50 содержательных страниц пер�
 - Нет missing local targets, Obsidian wiki-links и block IDs.
 - Локальных изображений в исходном репозитории не было; внешний image debt записан в backlog и audit.
 
+## Batch 2 — Critical Go
+
+Переписаны `basics`, `slice`, `map`, `interfaces`, `errors`, `panic/recover`, `goroutines`, `channels` и `sync-primitives`. Добавлены отдельные страницы про strings/bytes/runes, generics, memory model, atomics, context, data races, goroutine leaks, backpressure и graceful shutdown.
+
+Ключевые исправления:
+
+- `string` больше не описывается как гарантированно валидный UTF-8.
+- Удалено обещание автоматического ускорения в 5–10 раз после переписывания на Go.
+- Current map implementation описана через Swiss Tables; legacy `hmap` оставлена только как отрицательная историческая граница.
+- Исправлен ложный deadlock example: return из `main` завершает process без ожидания goroutines.
+- Generic methods отмечены как stable feature Go 1.27, а `WaitGroup.Go` — как API Go 1.25+.
+- Гарантии happens-before отделены от scheduler/runtime implementation.
+
+Primary sources: Go 1.27 release notes и specification, Go Memory Model, standard library package docs и исходный код `internal/runtime/maps`.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.

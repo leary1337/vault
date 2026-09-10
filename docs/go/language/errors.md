@@ -1,76 +1,106 @@
 ---
-title: "Обработка ошибок"
+title: Ошибки в Go
+description: Error chains, классификация ошибок и ответственность слоёв.
 tags:
   - go
+  - errors
+level:
+  - middle
+  - senior
+updated: 2026-09-10
 created: 2024-07-24
 ---
 
-# Обработка ошибок
+# Ошибки в Go
 
-### Описание
-Обработка ошибок является неотъемлемой частью разработки на Go. Go предоставляет простой и мощный механизм для работы с ошибками, что помогает писать надежный и устойчивый к ошибкам код.
+`error` — interface с методом `Error() string`. Ошибка — значение, которое вызывающий код может классифицировать, обернуть или преобразовать на boundary.
 
-### Использование интерфейса error
+## Создание и wrapping
 
-Ошибки в Go представлены значениями, реализующими интерфейс `error`:
 ```go
-type error interface {
-    Error() string
+var ErrNotFound = errors.New("not found")
+
+func load(id string) error {
+    err := query(id)
+    if err != nil {
+        return fmt.Errorf("load user %q: %w", id, err)
+    }
+    return nil
 }
 ```
-Любой тип, который реализует этот интерфейс, можно использовать как ошибку. Стандартная библиотека предоставляет тип errors.New для создания простых ошибок.
+
+`%w` сохраняет chain для `errors.Is`/`errors.As`; `%v` оставляет только текст. Не полагайтесь на сравнение строк ошибок.
+
+## Sentinel и typed errors
+
+Sentinel удобен для небольшой стабильной категории (`errors.Is(err, ErrNotFound)`). Typed error переносит структурированные данные:
+
 ```go
-import "errors"
+type ValidationError struct {
+    Field string
+    Reason string
+}
 
-var ErrExample = errors.New("example error")
-```
-#### Оборачивание ошибок
+func (e *ValidationError) Error() string {
+    return e.Field + ": " + e.Reason
+}
 
-Иногда бывает полезно обернуть одну ошибку в другую для добавления контекста или дополнительной информации. В Go это можно сделать с помощью пакета fmt или errors.
-```go
-import (
-    "errors"
-    "fmt"
-)
-
-func example() error {
-    return fmt.Errorf("an error occurred: %w", ErrExample)
+var validation *ValidationError
+if errors.As(err, &validation) {
+    // use validation.Field
 }
 ```
-Формат *%w* используется для оборачивания ошибок, позволяя сохранять оригинальную ошибку и добавлять контекст.
 
-#### errors.Is и errors.As
+`errors.Is` и `errors.As` обходят chain через `Unwrap`; тип может определить собственные `Is`/`As` semantics. Делайте это только когда relation действительно является частью API.
 
-Пакет errors предоставляет две полезные функции для работы с обернутыми ошибками: errors.Is и errors.As.
-1. **errors.Is**:
-	Эта функция позволяет проверить, является ли ошибка (или одна из обернутых ошибок) конкретной ошибкой.
+## Несколько причин
+
+`errors.Join` создаёт ошибку, которая unwrap-ится в несколько ошибок. Это полезно при независимых cleanup failures или parallel work, но порядок и policy всё равно должен определить caller.
+
 ```go
-if errors.Is(err, ErrExample) {
-    fmt.Println("An example error occurred")
-}	
-```
-2. **errors.As**:
-	Эта функция позволяет извлечь ошибку определенного типа из цепочки обернутых ошибок.
-```go
-var customErr *CustomError
-if errors.As(err, &customErr) {
-    fmt.Println("A custom error occurred:", customErr)
-}	
+return errors.Join(closeDBErr, flushErr)
 ```
 
-#### Best Practices
+## Error boundaries
 
-1. **Проверка ошибок**:
-	В Go ошибки нужно проверять после каждой операции, которая может завершиться неудачно. Это позволяет своевременно обнаружить и обработать ошибки.
+Хорошее разделение:
 
-2. **Использование оборачивания**:
-	Добавление контекста к ошибкам через оборачивания позволяет легко отследить источник ошибки и понять, что именно пошло не так.
+1. Infrastructure layer добавляет operation/context и сохраняет cause.
+2. Domain/service layer классифицирует ожидаемые исходы: not found, conflict, invalid state, unavailable.
+3. Transport boundary переводит категории в HTTP status или gRPC code и скрывает внутренние детали.
 
-3. **Создание пользовательских типов ошибок**:
-	Если необходимо более подробное представление ошибки, создайте свой тип, реализующий интерфейс error. Это может быть полезно для более гибкой обработки ошибок с использованием errors.As.
+Не привязывайте domain к HTTP: `ErrOrderClosed` не должен быть `http.StatusConflict`. Mapping принадлежит transport adapter.
 
-4. **Логирование и информирование пользователей**:
-	Не всегда нужно возвращать ошибки пользователю. Важно правильно логировать ошибки и предоставлять пользователям только необходимую информацию.
-### Краткое содержание
+## Retryable и permanent
 
-В Go ошибки обрабатываются через интерфейс *error*. Используйте функции *errors.Is* и *errors.As* для работы с обернутыми ошибками. Важно проверять ошибки после каждой операции и добавлять контекст к ним через оборачивание. Создавайте пользовательские типы ошибок для более гибкой обработки. Избегайте игнорирования ошибок и предоставляйте ясный и полезный контекст.
+Retry — policy вызывающего, а не свойство любого `error`. Учитывайте operation idempotency, deadline, attempt budget, backoff/jitter и server signal (`Retry-After`). Ошибка timeout может быть временной, но повтор non-idempotent request способен удвоить эффект.
+
+## Logging ownership
+
+Обычно ошибка логируется один раз на boundary, где есть request ID, actor, operation и outcome. Нижние слои возвращают контекст через wrapping. Логирование одной chain на каждом слое создаёт дубли и искажает error rate.
+
+Не отправляйте клиенту raw database/network error: он может раскрыть schema, адреса или секреты.
+
+## Typed nil
+
+```go
+func validate() error {
+    var err *ValidationError
+    return err // non-nil interface: dynamic type присутствует
+}
+```
+
+Если ошибки нет, возвращайте literal `nil`.
+
+## Вопросы для самопроверки
+
+1. Когда нужен sentinel, а когда typed error?
+2. Чем `%w` отличается от `%v`?
+3. Кто должен решать, повторять ли операцию?
+4. На каком слое ошибку следует логировать?
+
+## Источники
+
+- [`errors` package](https://pkg.go.dev/errors)
+- [`fmt.Errorf`](https://pkg.go.dev/fmt#Errorf)
+- [Go blog: Working with Errors in Go 1.13](https://go.dev/blog/go1.13-errors)

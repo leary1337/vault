@@ -1,140 +1,105 @@
 ---
-title: "Примитивы синхронизации"
+title: Примитивы синхронизации
+description: Mutex, RWMutex, WaitGroup, Once, Cond, Map и Pool в Go 1.27.
 tags:
   - go
-created: 2024-07-27
+  - concurrency
+  - sync
+level:
+  - middle
+  - senior
+updated: 2026-09-10
+created: 2024-07-25
 ---
 
 # Примитивы синхронизации
 
-### Описание
+Типы `sync` нельзя копировать после начала использования. Обычно primitive принадлежит struct по значению, а сам struct передаётся pointer.
 
-В языке Go предоставляются различные примитивы синхронизации, которые помогают управлять доступом к общим ресурсам между горутинами и обеспечивают безопасное взаимодействие между ними. Эти примитивы позволяют избежать состояний гонки (*data race*) и других проблем многопоточности.
-#### Мьютексы (Mutex)
+## `Mutex`
 
-**Мьютекс (mutual exclusion)** — это примитив, который позволяет ограничить доступ к разделяемому ресурсу так, чтобы только одна горутина могла использовать этот ресурс в данный момент времени.
-
-**Типы мьютексов**:
-
-- **sync.Mutex**: Стандартный мьютекс, блокирует доступ другим горутинам до тех пор, пока мьютекс не будет освобожден.
-
-- **sync.RWMutex**: Расширение мьютекса, которое поддерживает два типа блокировок: чтение (shared) и запись (exclusive). Несколько горутин могут одновременно держать блокировку на чтение, но блокировка на запись блокирует все остальные операции.
-
-**Пример использования**:
+`Unlock` synchronized-before более позднего successful `Lock` того же mutex. Защищайте invariant, а не отдельное поле, и держите critical section короткой.
 
 ```go
-var mu sync.Mutex
-var count int
+type Counter struct {
+    mu sync.Mutex
+    n  int64
+}
 
-func increment() {
-    mu.Lock()
-    count++
-    mu.Unlock()
+func (c *Counter) Inc() {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.n++
 }
 ```
-#### Условия (Cond)
 
-**sync.Cond** предоставляет возможность горутине ждать, пока другое условие не станет истинным, а также уведомлять другие горутины, что условие изменилось. Условия обычно используют вместе с мьютексами для защиты доступа к общему состоянию.
+Mutex не связан с goroutine ownership: unlock может выполнить другая goroutine, но такой design редко понятен. `TryLock` нужен редко; failure не создаёт synchronization.
 
-**Пример использования**:
+## `RWMutex`
 
-Две горутины ждут (`cond.Wait`), пока третья запишет данные в общий словарь и сообщит об этом с помощью `cond.Broadcast`.
+`RWMutex` допускает несколько readers или одного writer. Он не гарантирует, что будет быстрее `Mutex`: bookkeeping и cache contention могут перевесить выгоду. Выбирайте после benchmark с реальным read/write ratio и critical-section cost.
+
+Нельзя upgrade `RLock` в `Lock` или рекурсивно брать write lock. Writer expectation блокирует новые readers, чтобы writer мог продвинуться.
+
+## `WaitGroup`
+
+В Go 1.25+ предпочтителен `WaitGroup.Go`:
 
 ```go
-package main
-
-import (
-	"fmt"
-	"os"
-	"os/signal"
-	"sync"
-	"time"
-)
-
-func listen(name string, data map[string]string, c *sync.Cond) {
-	c.L.Lock()
-	c.Wait()
-
-	fmt.Printf("[%s] %s\n", name, data["key"])
-
-	c.L.Unlock()
-}
-
-func broadcast(name string, data map[string]string, c *sync.Cond) {
-	time.Sleep(time.Second)
-
-	c.L.Lock()
-
-	data["key"] = "value"
-
-	fmt.Printf("[%s] данные получены\n", name)
-
-	c.Broadcast()
-	c.L.Unlock()
-}
-
-func main() {
-	data := map[string]string{}
-
-	cond := sync.NewCond(&sync.Mutex{})
-
-	go listen("слушатель 1", data, cond)
-	go listen("слушатель 2", data, cond)
-
-	go broadcast("источник", data, cond)
-
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt)
-	<-ch
-}
+var wg sync.WaitGroup
+wg.Go(taskA)
+wg.Go(taskB)
+wg.Wait()
 ```
-#### Группы ожидания (WaitGroup)
 
-**sync.WaitGroup** используется для ожидания завершения группы горутин. Это полезно, когда нужно дождаться окончания выполнения нескольких асинхронных операций перед продолжением работы.
+Function, переданная `Go`, не должна panic. Для error propagation/cancellation используйте `errgroup`, а не side-channel без ясного ownership.
 
-**Пример использования**:
-```go
-func worker(id int, wg *sync.WaitGroup) {
-    defer wg.Done()
-    fmt.Printf("Worker %d starting\n", id)
-    // Some work...
-    fmt.Printf("Worker %d done\n", id)
-}
+Legacy pattern остаётся допустимым: `Add(1)` должен выполняться до запуска goroutine, затем `defer Done()`. Положительный `Add` при нулевом counter должен happen-before `Wait`.
 
-func main() {
-	var wg sync.WaitGroup
-    for i := 1; i <= 3; i++ {
-        wg.Add(1)
-        go worker(i, &wg)
-    }
-    wg.Wait()
-}
-```
-#### Атомарные операции (Atomic Operations)
+## `Once`, `OnceValue`, `OnceValues`
 
-Пакет **sync/atomic** предоставляет функции для атомарных операций, которые позволяют безопасно изменять переменные, разделяемые между горутинами, без использования мьютексов. Атомарные операции гарантируют, что изменение переменной происходит полностью и неделимо.
-
-**Основные операции**:
-- atomic.AddInt32, atomic.AddInt64: Атомарное увеличение.
-- atomic.LoadInt32, atomic.LoadInt64: Атомарное чтение.
-- atomic.StoreInt32, atomic.StoreInt64: Атомарная запись.
-- atomic.CompareAndSwapInt32, atomic.CompareAndSwapInt64: Атомарное сравнение и замена.
-
-**Пример использования**:
+`Once.Do` выполняет function ровно один раз; concurrent callers ждут её завершения. Panic считается выполнением: повторного вызова не будет. `OnceValue` и `OnceValues` возвращают memoized results и повторяют panic с тем же value для каждого caller.
 
 ```go
-var counter int32
-
-func increment() {
-    atomic.AddInt32(&counter, 1)
-}
-
-func main() {
-    go increment()
-    go increment()
-    fmt.Println(atomic.LoadInt32(&counter))
-}
+loadConfig := sync.OnceValues(func() (*Config, error) {
+    return readConfig()
+})
 ```
-### Краткое содержание
 
-**Примитивы синхронизации** помогают строить надежные и эффективные многопоточные программы в Go. Понимание их правильного использования критично для предотвращения проблем многопоточности, таких как *состояния гонки*, *блокировки* и *дедлоки*.
+Если нужно retry initialization после transient error, `OnceValues` не подходит без дополнительного state machine.
+
+## `Cond`
+
+`Cond` используется, когда goroutines ждут изменения predicate под lock. Всегда проверяйте predicate в loop: wake-up не означает, что condition всё ещё true.
+
+```go
+c.L.Lock()
+for !ready {
+    c.Wait()
+}
+c.L.Unlock()
+```
+
+`Broadcast` похож на close channel для одноразового события; channel часто проще. `Cond` полезен для повторяющихся state transitions под общим lock.
+
+## `sync.Map`
+
+`sync.Map` специализирована: workload с write-once/read-many keys или операции по disjoint key sets. Для обычной typed map с compound invariants чаще лучше `map[K]V` + mutex. `Range` не является consistent snapshot.
+
+## `sync.Pool`
+
+Pool уменьшает allocation pressure для временных взаимозаменяемых объектов. Runtime может удалить любой item в любой момент; это не cache и не storage. Перед `Put` очистите чувствительные данные и не используйте object после передачи ownership pool.
+
+## Как выбирать
+
+- Mutex: общий mutable invariant.
+- Atomic: одна независимая machine-word-like state transition.
+- Channel: передача ownership/событий и coordination.
+- RWMutex: доказанный read-heavy bottleneck.
+- Cond: ожидание повторяющегося predicate под lock.
+
+## Источники
+
+- [`sync` package](https://pkg.go.dev/sync)
+- [The Go Memory Model: Locks and Once](https://go.dev/ref/mem#hdr-Locks)
+- [Go 1.25 Release Notes: `WaitGroup.Go`](https://go.dev/doc/go1.25#sync)

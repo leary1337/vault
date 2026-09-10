@@ -78,3 +78,8 @@
 ## Assets и ссылки
 
 Локальных assets нет, поэтому при filesystem migration ничего не теряется. Внешние изображения сохранены в мигрированных source material, но считаются техническим долгом: ключевые схемы нужно заменить Mermaid или самодостаточным текстом во время содержательного rewrite. Публичная навигация не содержит legacy Kafka/Docker pages.
+
+## Resolution log
+
+- 2026-09-10 — Batch 1: все 53 страницы `Programming/` сопоставлены с 50 content pages и тремя новыми indexes; legacy paths удалены после link validation.
+- 2026-09-10 — Batch 2: все исходные P0-страницы Go из audit (`basics`, `map`, `slice`, `interfaces`, errors/panic, goroutines/channels/sync) переписаны; добавлены отсутствующие P0-страницы.

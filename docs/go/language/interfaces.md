@@ -1,310 +1,120 @@
 ---
-title: "Интерфейсы в Go"
+title: Интерфейсы в Go
+description: Method sets, dynamic values, typed nil и границы применения интерфейсов.
 tags:
   - go
-created: 2024-07-28
+  - interfaces
+level:
+  - middle
+  - senior
+updated: 2026-09-10
+created: 2024-07-30
 ---
 
 # Интерфейсы в Go
 
-### Описание
-
-**Интерфейс в Go** - набор сигнатур методов, которые надо реализовать, чтобы удовлетворить контракту.
-
-```go
-type Stringer interface {
-	String() string
-}
-
-type Shape interface {
-	Area() float64
-	Perimeter() float64
-}
-```
-
-- Одному интерфейсу могут соответствовать много типов
-- Тип может реализовать несколько интерфейсов
-#### Утиная типизация 🦆
-
-В Go используется **утиная типизация (duck typing)**: не нужно явно указывать, что тип реализует интерфейс. Достаточно просто реализовать необходимые методы, и тип будет удовлетворять интерфейсу.
-#### Типы
-
-Переменная *типа интерфейс* может содержать значение типа, реализующего этот интерфейс
-
-```go
-var s Stringer  // статический тип
-s = time.Time{} // динамический тип
-```
-
-- Значение типа интерфейс состоит из динамического типа и значения
-- Мы можем их смотреть при помощи `%v` и `%T` или с помощью `reflect`
-#### Пример использования интерфейсов
-
-```go
-type Duck interface {  
-    Talk() string  
-    Walk()  
-}  
-  
-type Dog struct {  
-    name string  
-}  
-  
-func (d Dog) Talk() string {  
-    return fmt.Sprintf("Dog %s", d.name)  
-}  
-
-// Pointer receiver!
-func (d *Dog) Walk() {  
-    fmt.Println("Walk...")  
-}
-  
-func quack(d Duck) {  
-    fmt.Println(d.Talk())  
-}  
-  
-func main() {
-	// cannot use Dog{…} (value of type Dog) as Duck value in argument to quack:
-	// Dog does not implement Duck (method Walk has pointer receiver)
-    quack(Dog{name: "Charlie"})
-	
-	quack(&Dog{name: "Charlie"}) // Dog Charlie
-}
-```
-
-- **Value Receiver**: если методы интерфейса имеют value receiver, то и структура, и указатель на структуру могут удовлетворять этому интерфейсу, поскольку Go автоматически делает копию структуры, если метод вызывает значение.
-
-- **Pointer Receiver**: если метод(-ы) интерфейса имеют pointer receiver, *то только указатель на структуру может удовлетворять интерфейсу*. Это связано с тем, что Go не может автоматически преобразовать структуру в указатель, когда вызывается метод с pointer receiver.
-#### Композиция
+Interface type задаёт type set. Обычный runtime interface перечисляет методы; тип удовлетворяет ему неявно, если его method set содержит эти методы.
 
 ```go
 type Reader interface {
-    Read(p []byte) (n int, err error)
+    Read([]byte) (int, error)
 }
 
-type Closer interface {
-    Close() error
-}
+type Buffer struct{}
 
-type ReadCloser interface {
-    Reader
-    Closer
-}
+func (*Buffer) Read(p []byte) (int, error) { return 0, io.EOF }
+
+var _ Reader = (*Buffer)(nil) // compile-time assertion
 ```
 
-В Go принят идиоматический подход при котором определяем маленькие интерфейсы, а затем уже работаем с композицией этих интерфейсов.
+## Method sets
 
-"Чем больше интерфейс - тем слабее абстракция"
-#### Пустой интерфейс 👀
+- Method set определённого типа `T` содержит методы с receiver `T`.
+- Method set `*T` содержит методы с receiver `T` и `*T`.
 
-![](https://i.imgur.com/uaWJfyq.png)
+Поэтому `*Buffer` реализует `Reader`, а `Buffer` — нет. Автоматическое взятие адреса в вызове `value.PointerMethod()` не меняет правила interface assignment.
+
+## Static type, dynamic type и dynamic value
+
+У interface variable есть static interface type. В runtime она либо nil, либо содержит пару dynamic type + dynamic value.
 
 ```go
-var s interface{}
-var s any
+var r Reader          // nil interface: нет dynamic type и value
+var b *Buffer = nil
+r = b                 // dynamic type *Buffer, dynamic value nil
+
+fmt.Println(r == nil) // false
 ```
 
-- Любой тип реализует пустой интерфейс
-- Не нужно им злоупотреблять!
-#### Внутреннее устройство
+Typed nil часто появляется при возврате `*CustomError` как `error`. Возвращайте `nil` явно, если ошибки нет.
 
-![](https://i.imgur.com/pwFHE3I.png)
+## Assignment, assertion и conversion
+
+Это разные операции:
+
+- `var r Reader = b` — interface assignment; compiler проверяет satisfaction.
+- `v, ok := x.(T)` — type assertion; проверяется dynamic type interface value.
+- `T(x)` — type conversion; применяется по правилам convertibility и не является runtime-проверкой interface satisfaction.
 
 ```go
-type iface struct {  
-    tab  *itab          // Информация об интерфейсе
-    data unsafe.Pointer // Хранимые данные
-}
-
-// itab содержит тип интерфейса и информацию о хранином типе
-type itab struct {
-    inter *interfacetype // Метаданные интерфейса (статический тип)
-    _type *_type         // Go-шный тип хранимого интерфейсом значения (динамический тип)
-	hash  uint32         // copy of _type.hash. Used for type switches.
-    _     [4]byte        // Выравнивание структуры в памяти
-    fun   [1]uintptr     // Список методов динамического типа, удовлетворяющих интерфейсу  
-}
-
-type InterfaceType struct {  
-    Type  
-    PkgPath Name      // import path  
-    Methods []Imethod // sorted by hash  
+switch v := x.(type) {
+case string:
+    fmt.Println(len(v))
+case fmt.Stringer:
+    fmt.Println(v.String())
+default:
+    fmt.Println("unsupported")
 }
 ```
 
-Вызов метода интерфейса в Go происходит следующим образом:
+Assertion без `ok` паникует при несовпадении. Assertion к interface `x.(J)` успешна, если dynamic type `x` реализует `J`.
 
-1) **Статический тип:** В интерфейсе описаны методы, которые должны быть реализованы типом. Когда вызывается метод через интерфейс, сначала вызывается метод статического типа интерфейса. Это определяет, какой метод должен быть вызван на основании сигнатуры, объявленной в интерфейсе.
+## Embedding
 
-2) **Runtime:** Во время выполнения (`runtime`) происходит динамическое связывание метода. Интерфейс содержит информацию о том, какой конкретный тип (динамический тип) реализует методы, указанные в интерфейсе. Эта информация хранится в скрытой таблице (vtable), которая ассоциирует методы интерфейса с методами конкретного типа.
-
-Проще говоря, вызов метода интерфейса в Go сначала определяет метод по его сигнатуре (статический тип), а затем в runtime выбирает правильную реализацию (динамический тип) и вызывает её.
-
-**На этапе компиляции:**
-- Генерируются метаданные для каждого статического типа, включая его список методов.
-- Генерируются метаданные для каждого интерфейса, включая его список методов.
-
-И при компиляции и в runtime в зависимости от выражения:
-- Сравниваются methodset (набор методов) типа и интерфейса.
-- Создается и кэшируется itab.
-
-**Создание интерфейса:**
-1) Аллокация места для хранения адреса ресивера.
-2) Получение `itab`.
-3) Проверка кэша.
-4) Нахождение реализации методов.
-5) Создание `iface`: `runtime.convT2I`
-```go
-s := Speaker(Human{Greeting: "Hello!"})
-```
-
-Динамический диспатчинг:
-- Для `runtime` это вызов n-го метода `s.Method_0()`.
-- Превращается в вызов вида `s.itab.fun[0](s.data)`.
+Embedding interface объединяет требования:
 
 ```go
-s.SayHello()
-```
-Метод `s.SayHello()` будет динамически связан с реализацией метода `SayHello` для типа `Human`, определенного в момент присваивания значения интерфейсной переменной `s`.
-#### Практическое использование интерфейсов
-
-*Zero value* интерфейса = `nil`
-
-```go
-type IHTTPClient interface {  
-    Do(req *http.Request) (*http.Response, error)  
-}  
-  
-func main() {  
-    var c IHTTPClient  
-    fmt.Println("value of client is", c)    // value of client is <nil>
-    fmt.Printf("type of client is %T\n", c) // type of client is <nil>
-    fmt.Println("(c == nil) is", c == nil)  // (c == nil) is true
+type ReadWriter interface {
+    io.Reader
+    io.Writer
 }
 ```
 
-**Опасный `nil`:**
-```go
-type MyErr struct{}  
-  
-func (m MyErr) Error() string {  
-    return "my err string"  
-}  
-  
-func main() {  
-    fmt.Println(returnError() == nil)          // true
-    fmt.Println(returnErrorPtr() == nil)       // true
-    fmt.Println(returnCustomError() == nil)    // false
-    fmt.Println(returnCustomErrorPtr() == nil) // false
-    fmt.Println(returnMyError() == nil)        // true
-}  
-  
-func returnError() error {  
-    var err error
-    return err // Error = nil
-}  
-  
-func returnErrorPtr() *error {  
-    var err *error
-    return err // *Error = nil
-}  
-  
-func returnCustomError() error {  
-    var customErr MyErr // struct MyErr = nil
-    return customErr    // Error(MyErr=nil) != nil
-}  
-  
-func returnCustomErrorPtr() error {  
-    var customErr *MyErr // pointer to customErr = nil, 
-    return customErr     // Error(*MyErr=nil) != nil 
-}  
-  
-func returnMyError() *MyErr {  
-    return nil // *MyErr = nil
-}
-```
+Non-basic interfaces с type terms (`~int`, unions) предназначены для constraints и не могут использоваться как тип обычной runtime variable.
 
-**Важные моменты:**
-1. **`returnError()`**: В данном случае, `returnError() == nil` вернет `true`, так как переменная `err` равна `nil` и никакого типа в ней нет.
+## Интерфейсы или generics
 
-2. **`returnErrorPtr()`**: Вернет `true`, так как указатель на `error` равен `nil`.
+Используйте interface, когда вызывающему важна capability (`Read`, `Store`, `Now`) и реализации могут иметь разные concrete types. Используйте type parameter, когда алгоритм должен сохранять concrete type или применять операции из constraint к набору типов.
 
-3. **`returnCustomError()`**: Здесь создается переменная `customErr` типа `MyErr`, которая имеет метод `Error()`, реализующий интерфейс `error`. Даже если переменная `customErr` содержит значение по умолчанию, оно не равно `nil`. Поэтому `returnCustomError() == nil` вернет `false`.
+Полезные правила дизайна:
 
-4. **`returnCustomErrorPtr()`**: Возвращает указатель на структуру `MyErr`. В этом случае, даже если указатель `customErr` равен `nil`, проверка `returnCustomErrorPtr() == nil` вернет `false`.
+- объявляйте маленький interface рядом с consumer;
+- не создавайте interface «на будущее» для каждого struct;
+- возвращайте concrete type, если abstraction boundary не нужна;
+- не принимайте `any`, когда допустимые формы данных можно выразить типом.
 
-5. **`returnMyError()`**: Явно возвращает `nil` для типа `*MyErr`. Проверка `returnMyError() == nil` вернет `true`.
+## Реализация и производительность
 
-Этот пример подчеркивает важность правильного понимания проверки интерфейсов на `nil`, особенно в контексте того, когда тип в интерфейсе присутствует, но само значение может быть `nil`.
-#### Проверка типов (Type Assertion)
+Точное представление interface и dispatch — implementation detail. Interface call может мешать inlining или приводить к escape, но не обязан создавать heap allocation. Решение принимают compiler и контекст вызова; проверяйте `-gcflags=-m`, benchmarks и profiles.
 
-Позволяет проверять и извлекать динамический тип из интерфейса.
+## Типичные ошибки
 
-Выражение `x.(T)` проверяет, что интерфейс `x` не равен `nil` и что конкретная часть `x` имеет тип `T`.
+- Typed nil внутри non-nil interface.
+- Ожидание, что `T` реализует interface с pointer-receiver methods.
+- Смешение conversion и assertion.
+- Сравнение interface values с non-comparable dynamic type.
+- «Interface pollution»: abstraction объявлена producer-слоем и содержит лишние методы.
 
-1. **Если `T` не интерфейс**, то проверяется, что динамический тип `x` соответствует `T`. То есть, `x` должен быть экземпляром конкретного типа `T`.
+## Вопросы для самопроверки
 
-2. **Если `T` интерфейс**, то проверяется, что динамический тип `x` реализует интерфейс `T`. В этом случае, `x` должен быть экземпляром типа, который реализует интерфейс `T`.
+1. Почему `var e error = (*MyError)(nil)` не равна `nil`?
+2. Какие method sets у `T` и `*T`?
+3. Чем assertion к concrete type отличается от assertion к interface?
+4. Когда generic function лучше interface parameter?
 
-```go
-var i interface{} = "hello"  
-  
-s := i.(string)  
-fmt.Println(s)       // hello  
-  
-s, ok := i.(string)  
-fmt.Println(s, ok)   // hello true  
-  
-r, ok := i.(fmt.Stringer)  
-fmt.Println(r, ok)   // <nil> false  
-  
-f, ok := i.(float64)  
-fmt.Println(f, ok)   // 0 false  
-  
-f := i.(float64)     // panic: interface conversion: interface {} is string, not float64  
-fmt.Println(f)       // because ok = false
-```
-#### Switch по типам (Type Switch)
+## Источники
 
-**Type Switch** позволяет безопасно и удобно работать с различными реализациями интерфейса, обрабатывать разные типы данных по-разному. В данном примере функция проверяет, к какому криптографическому алгоритму относится предоставленный открытый ключ, и выполняет соответствующую обработку:
-
-```go
-func checkSignature(/* ... */, publicKey crypto.PublicKey) (err error) {
-    // ...
-    switch pub := publicKey.(type) {
-    case *rsa.PublicKey:
-        // Обработка RSA ключа
-    case *ecdsa.PublicKey:
-        // Обработка ECDSA ключа
-    case ed25519.PublicKey:
-        // Обработка Ed25519 ключа
-    default:
-        return ErrUnsupportedAlgorithm
-    }
-}
-```
-#### Приведение типов (Cast):
-
-Приведение типов в Go возможно только если конкретный тип, находящийся под интерфейсом, реализует все методы целевого интерфейса.
-
-
-```go
-type BaseStorage interface {
-    Close()
-}
-
-type SyncStorage interface {
-    Close()
-    Sync()
-}
-
-func main() {
-    var s BaseStorage
-    _ = SyncStorage(s)
-}
-```
-
-`SyncStorage` требует наличие методов `Close()` и `Sync()`. Если конкретный тип, содержащийся в `s`, реализует эти методы, приведение будет успешным, иначе будет **паника** (если не используется вариант с проверкой, как в Type Assertion).
-### Краткое содержание
-
-**Интерфейс в Go** - набор сигнатур методов, которые надо реализовать, чтобы удовлетворить контракту. В Go используется **утиная типизация (duck typing)**: не нужно явно указывать, что тип реализует интерфейс. Достаточно просто реализовать необходимые методы, и тип будет удовлетворять интерфейсу.
+- [Go specification: Interface types](https://go.dev/ref/spec#Interface_types)
+- [Go specification: Method sets](https://go.dev/ref/spec#Method_sets)
+- [Go specification: Type assertions](https://go.dev/ref/spec#Type_assertions)
+- [Go Wiki: CodeReviewComments — Interfaces](https://go.dev/wiki/CodeReviewComments#interfaces)

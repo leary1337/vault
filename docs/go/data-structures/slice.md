@@ -1,237 +1,121 @@
 ---
-title: "Slice в Go"
+title: Slice в Go
+description: Семантика slice, backing array, append, aliasing и удержание памяти.
 tags:
   - go
-created: 2024-07-28
+  - data-structures
+level:
+  - middle
+  - senior
+updated: 2026-09-10
+created: 2024-07-30
 ---
 
 # Slice в Go
 
-### Описание
+Slice описывает последовательный segment underlying array. Копирование slice копирует descriptor, а не элементы, поэтому копии обычно разделяют данные.
 
-**slice** — это "ссылочный" тип данных, представляющий собой последовательность с динамической длиной. Это аналог динамических массивов или списков в других языках программирования. В отличие от массивов, размер слайсов может изменяться в ходе работы программы.
-#### Структура slice
+## `len`, `cap` и создание
 
-**slice** — это структура данных, состоящая из трех компонентов:
 ```go
-type slice struct {  
-    array unsafe.Pointer  
-    len   int  
-    cap   int  
+var nilSlice []int            // len=0, cap=0, nil
+empty := []int{}              // len=0, cap=0, non-nil
+values := make([]int, 3, 8)   // len=3, cap=8; элементы равны zero value
+```
+
+`len` — доступная длина; `cap` — сколько элементов можно охватить reslicing от начала slice до конца underlying array. `make([]T, n)` создаёт n элементов, а не только резервирует capacity. Для пустого, но заранее ёмкого результата используйте `make([]T, 0, n)`.
+
+Nil и empty slice одинаково работают с `len`, `cap`, `range` и `append`, но могут различаться в API/serialization (`encoding/json` обычно кодирует nil как `null`, empty как `[]`). Зафиксируйте контракт boundary явно.
+
+## Reslicing и full slice expression
+
+```go
+base := []int{1, 2, 3, 4}
+part := base[1:3]   // len=2, capacity extends into base
+safe := base[1:3:3] // max bound limits capacity to 2
+```
+
+Full slice expression `a[low:high:max]` задаёт `cap = max-low`. Это полезно при передаче subslice функции: последующий `append` не сможет незаметно перезаписать элементы за `high`; при нехватке capacity будет выделен новый array.
+
+## `append`
+
+`append` возвращает новый slice value. Если capacity достаточно, данные добавляются в существующий array; иначе выделяется другой array и элементы копируются.
+
+```go
+s = append(s, value) // результат обязательно сохранить
+```
+
+Алгоритм роста capacity — implementation detail. Нельзя рассчитывать на удвоение или конкретный threshold. Если известен разумный верхний размер, preallocation уменьшает reallocations, но чрезмерная capacity удерживает память.
+
+### Aliasing bug
+
+```go
+func addFooter(payload []byte) []byte {
+    return append(payload, '\n')
 }
 ```
 
-1. **Ссылка на базовый массив (array)** — указывает на место в памяти, где хранятся данные. Слайс не содержит сами данные, а лишь ссылку на них.
-2. **Длина (len)** — количество элементов, которые фактически используются в слайсе.
-3. **Емкость (cap)** — максимальное количество элементов, которые могут быть размещены в базовом массиве.
-#### Создание
+Функция может изменить array caller или вернуть независимый array — зависит от capacity. Если ownership должен быть независимым, копируйте явно:
 
-Слайсы могут быть созданы следующими способами:
 ```go
-list := make([]int, 0, 5) // []
-list1 := make([]int, 5)   // [0,0,0,0,0]
-
-list2 := []int{1, 2, 3}.  // [1,2,3]
-
-var list3 []int           // nil
+owned := append([]byte(nil), payload...)
+owned = append(owned, '\n')
 ```
 
-**Нулевое значение слайса** — это `nil`, но работать с ним можно:
-```go
-var list []int  
-list = append(list, 1, 2, 3) // [1,2,3]
-```
-#### Добавление элементов
+## `copy` и overlap
 
-Функция `append` в языке Go является встроенной и используется для добавления элементов в слайс.
+`copy(dst, src)` копирует `min(len(dst), len(src))` элементов и корректно поддерживает overlapping slices.
 
-Она принимает два или более аргументов:
 ```go
-func append(slice []Type, elems ...Type) []Type
+values := []int{1, 2, 3, 4}
+copy(values[1:], values[:3]) // [1 1 2 3]
 ```
 
-1. Первый аргумент — это слайс, в который нужно добавить элементы.
-2. Второй и последующие аргументы — это элементы, которые необходимо добавить.
+Для вставок, удаления, cloning и compact operations используйте generic пакет `slices`, если он выражает намерение яснее ручных `append`/`copy`.
+
+## `clear`
+
+`clear(s)` присваивает zero value каждому элементу текущей длины. Длина и capacity не меняются. Для slice pointers это помогает разорвать ссылки перед повторным использованием большого buffer, но сам backing array остаётся выделенным, пока достижим.
 
 ```go
-slice := []int{1, 2, 3}
-slice = append(slice, 4, 5, 6)
+clear(values)
+values = values[:0]
 ```
 
-При добавлении элементов в слайс с использованием функции `append` происходит следующее:
+## Удержание памяти
 
-- **Проверка текущей емкости слайса**: Если емкости базового массива слайса достаточно для размещения новых элементов, то функция просто добавляет их в существующий массив.
-
-- **Пересоздание базового массива**: Если емкости недостаточно, создается новый базовый массив. Затем все элементы копируются из старого массива в новый, и новые элементы добавляются в новый массив.
-
-- **Обновление слайса**: Функция возвращает обновленный слайс, указывающий на новый массив.
-
-Новый размер базового массива высчитывается следующим образом:
-```go
-// nextslicecap computes the next appropriate slice length.
-func nextslicecap(newLen, oldCap int) int {  
-    newcap := oldCap  
-    doublecap := newcap + newcap  
-    if newLen > doublecap {  
-       return newLen
-    }  
-  
-    const threshold = 256  
-    if oldCap < threshold {  
-       return doublecap  
-    }  
-    for {  
-       // Transition from growing 2x for small slices  
-       // to growing 1.25x for large slices. This formula
-       // gives a smooth-ish transition between the two.
-       newcap += (newcap + 3*threshold) >> 2  
-  
-       // We need to check `newcap >= newLen` and whether `newcap` overflowed. 
-       // newLen is guaranteed to be larger than zero, hence
-       // when newcap overflows then `uint(newcap) > uint(newLen)`.
-       // This allows to check for both with the same comparison.
-       if uint(newcap) >= uint(newLen) {  
-          break
-       }  
-    }  
-  
-    // Set newcap to the requested cap when  
-    // the newcap calculation overflowed.
-    if newcap <= 0 {  
-       return newLen  
-    }  
-    return newcap  
-}
-```
-- Если длина массива меньше **256**, то новая емкость будет в два раза больше прошлого. Иначе увеличивается более умеренно, примерно на **1.25x**
-
-#### Передача в функции
-
-Слайсы в Go являются "ссылочными" типами, что означает, что передача слайса в функцию по значению не копирует весь массив данных, а копирует только структуру слайса, содержащую ссылку на базовый массив, длину и емкость.
-
-Это означает, что изменения элементов базового массива через один слайс будут видны и через другие слайсы, которые ссылаются на тот же массив:
+Маленький subslice удерживает весь backing array достижимым:
 
 ```go
-func modifySlice(s []int) {
-    s[0] = 100
-}
-
-func main() {
-    s := []int{1, 2, 3}
-    modifySlice(s)
-    fmt.Println(s) // Вывод: [100, 2, 3]
+func prefix(data []byte) []byte {
+    return data[:16] // может удерживать многомегабайтный data
 }
 ```
 
-Изменение длины слайса с помощью встроенных функций, таких как `append`, не всегда влияет на другие слайсы, которые ссылаются на тот же базовый массив, так как `append` может привести к созданию нового базового массива, если исходный массив не имеет достаточной емкости для добавления новых элементов:
+Если срок жизни prefix велик, создайте независимую копию: `bytes.Clone(data[:16])` или `slices.Clone(data[:16])`.
 
-```go
-func appendToSlice(s []int) []int {
-    s = append(s, 4)
-    return s
-}
+## Передача между goroutines
 
-func main() {
-    s := []int{1, 2, 3}
-    newS := appendToSlice(s)
-    fmt.Println(s)    // Вывод: [1, 2, 3]
-    fmt.Println(newS) // Вывод: [1, 2, 3, 4]
-}
-```
+Копия slice не даёт synchronization и не защищает elements. Одновременная запись и чтение общего backing array без happens-before — data race. Передавайте ownership, копируйте данные или синхронизируйте доступ.
 
-#### Ключевые моменты и нюансы
+## Что гарантирует язык
 
-**Создание среза и емкость:**
+- Slice index должен быть в пределах `len`, иначе panic.
+- `append` сохраняет существующие элементы и возвращает результат; reuse конкретного array не гарантирован.
+- `copy` работает при overlap.
+- Slice не comparable, кроме сравнения с `nil`.
+- Конкретный layout descriptor и growth policy не являются API.
 
-Формат среза с тремя индексами выглядит так: `s[low:high:max]`, где:
+## Вопросы для самопроверки
 
-- `low` — начальный индекс, включается в срез.
-- `high` — конечный индекс, не включается в срез.
-- `max` — максимальная емкость среза.
-- `low` <= `high` <= `max`
+1. Почему две копии slice могут видеть изменения друг друга?
+2. Что меняет третий index в `a[low:high:max]`?
+3. Почему маленький subslice способен удерживать большой объём памяти?
+4. Гарантирует ли preallocation отсутствие всех allocations?
 
-Важные моменты:
-- Если третий индекс `max` не указан, емкость нового слайса определяется как `cap(s) - low`, где `cap(s)` — это емкость исходного слайса или массива.
-- Указание индекса `max` меньше, чем индекс `high`, вызовет панику.
-- Если `low > high`, также возникнет ошибка.
+## Источники
 
-```go
-func main() {
-    array := []int{1, 2, 3, 4, 5, 6}
-    s := array[1:2:4]
-    fmt.Println(s)           // Вывод: [2]
-    fmt.Println(len(s))      // Вывод: 1
-    fmt.Println(cap(s))      // Вывод: 3
-}
-```
-
-```go
-func main() {
-    s := []int{1, 2, 3, 4, 5}
-    sliced := s[1:3]
-    fmt.Println(sliced, len(sliced), cap(sliced)) // Вывод: [2 3] 2 4
-}
-```
-Слайс `sliced` начинается с элемента `s[1]` и заканчивается на `s[3]` (не включая его). Длина `sliced` — 2, но его емкость — 4, так как базовый массив начинается с `s[1]` и заканчивается на `s[5]`.
-
-```go
-func main() {  
-    base := [5]int{1, 2, 3, 4, 5}  
-    sliced := base[:]  
-    sliced[0] = 3  
-    fmt.Println(base)   // [3 2 3 4 5]  
-    fmt.Println(sliced) // [3 2 3 4 5]  
-}
-```
-C помощью операции среза `[:]` создаем слайс `sliced`. В этом случае не происходит копирования элементов массива `base`, слайс `sliced` просто ссылается на те же данные. Поэтому изменения в слайсе `sliced` также отразятся на массив `base`.
-
-```go
-func main() {  
-    base := [5]int{1, 2, 3, 4, 5}  
-    sliced := base[1:]  // [2 3 4 5]  
-    sliced[0] = 3  
-    fmt.Println(base)   // [1 3 3 4 5]  
-    fmt.Println(sliced) // [3 3 4 5]  
-}
-```
-`sliced` ссылается на ту же область памяти, что и `base`, начиная со второго элемента массива. Его длина и емкость равны 4. Первый элемент слайса `sliced` - это второй элемент массива `base`, соответственно, меняя первый элемент `sliced` на 3, мы меняем второй элемент `base`.
-
-```go
-func main() {  
-    base := []int{1, 2, 3, 4, 5}  
-    sliced := base[1:2]        // [2] len=1 cap=4  
-    sliced = append(sliced, 4) // [2 4] len=2 cap=4  
-    fmt.Println(base)          // [1 2 4 4 5]  
-    fmt.Println(sliced)        // [2 4]  
-}
-```
-Присоединяем элемента со значением 4 к слайсу `sliced`. Здесь используется операция `append`, которая может вызвать `growslice`, если требуется увеличить емкость слайса. Однако, в данном случае, поскольку емкость `sliced` достаточна для добавления ещё одного элемента, `growslice` не вызывается, и `base` изменяется напрямую, так как `sliced` ссылается на его элементы.
-
-**Переаллокация памяти:**
-
-```go
-func main() {
-    s := []int{1, 2, 3, 4, 5}
-    s = append(s, 6, 7, 8)
-    fmt.Println(s, len(s), cap(s)) // Вывод: [1 2 3 4 5 6 7 8] 8 10
-}
-```
-Исходный слайс имел емкость 5. При добавлении трех новых элементов базовый массив был пересоздан, чтобы вместить новые элементы. Емкость увеличилась до 10, а длина стала 8.
-
-**Сравнение нулевого и пустого слайсов:**
-
-```go
-func main() {
-    var nilSlice []int
-    emptySlice := []int{}
-
-    fmt.Println(nilSlice == nil)     // true
-    fmt.Println(len(nilSlice))       // 0
-    fmt.Println(emptySlice == nil)   // false
-    fmt.Println(len(emptySlice))     // 0
-}
-```
-Нулевой слайс (`nilSlice`) действительно `nil`, а пустой слайс (`emptySlice`) инициализирован и не `nil`. Оба слайса имеют длину 0, но их сравнение с `nil` различается. Поэтому лучше всегда проверять slice на длину функцией `len`.
-### Краткое содержание
-
-**slice** — это ссылочный тип данных, представляющий собой последовательность с динамической длиной. Это аналог динамических массивов или списков в других языках программирования. В отличие от массивов, размер слайсов может изменяться в ходе работы программы.
+- [Go specification: Slice types](https://go.dev/ref/spec#Slice_types)
+- [Go specification: Appending to and copying slices](https://go.dev/ref/spec#Appending_and_copying_slices)
+- [Go blog: Go Slices: usage and internals](https://go.dev/blog/slices-intro)
+- [`slices` package](https://pkg.go.dev/slices)
