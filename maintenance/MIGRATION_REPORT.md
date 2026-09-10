@@ -108,6 +108,12 @@ Go page содержит 10 annotated examples из спецификации: in
 
 Материал проверен по актуальным Linux man-pages и kernel documentation; отдельно разведены syscall vs context switch, RSS vs cgroup memory, CPU utilization vs load average и cgroup quota throttling.
 
+## Batch 7b — Docker
+
+Пустая Docker page полностью переписана в раздел из 9 страниц; legacy placeholder удалён из `docs/` и остаётся в Git history. Покрыты OCI-style images/layers, BuildKit cache/context/secrets, Dockerfile command semantics, networking, storage, cgroup resources, PID 1/signals, security и production Go multi-stage image.
+
+Production example использует Go 1.27.1 builder, separate test/build stages, BuildKit caches, `CGO_ENABLED=0`, distroless non-root runtime и exec-form entrypoint; digest pinning оставлено обязательным deployment policy без выдуманного digest.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.

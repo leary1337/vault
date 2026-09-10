@@ -8,4 +8,4 @@ updated: 2026-09-10
 
 # Контейнеры
 
-Раздел [Docker](docker/README.md) переписывается с нуля: исходная заметка была пустой. Kubernetes будет добавлен после Linux и Docker foundations.
+[Docker](docker/README.md) объясняет image build и container runtime от layers до cgroups, signals и production Go image. Kubernetes продолжает эти foundations на уровне orchestration: Pod lifecycle, networking, rollout, scheduling и autoscaling.
