@@ -9,7 +9,7 @@
 - Wiki-links `[[...]]` не найдены.
 - Найдены Markdown-transclusions на Obsidian block IDs в index pages Go и Networking.
 - Найдены block IDs в содержательных страницах.
-- Внешние изображения размещены преимущественно на Imgur; это migration debt.
+- Исходные внешние Imgur/third-party изображения удалены после замены самодостаточным текстом; локальных assets для переноса не было.
 - Все исходные заметки имели Obsidian-oriented frontmatter с русским нестандартным ключом даты.
 
 ## Реестр
@@ -42,8 +42,8 @@
 | `Programming/База данных/!Краткое содержание.md` | `docs/databases/README.md` | MERGE | Outline вместо index page; упрощённый CAP | Заменён index page | P0 |
 | `Programming/База данных/Общие сведения.md` | `docs/databases/fundamentals.md` | UPDATE | CAP сформулирован как «любые 2 из 3»; обобщения о NoSQL | Мигрирован; исправить | P0 |
 | `Programming/База данных/Блокировки.md` | `docs/databases/postgresql/locks.md` | REWRITE | SQL Server-style S/X/IS/IX/U terminology выдана за общую; неверно про SELECT | Полностью переписать как PostgreSQL-specific | P0 |
-| `Programming/Брокеры сообщений/Kafka.md` | `docs/messaging/kafka/legacy-overview.md` | REWRITE | Смешаны Kafka/RabbitMQ/Redis; много external images; version-sensitive producer/KRaft facts | Исключён из публичной навигации; использовать как source material | P0 |
-| `Programming/Контейнеризация и виртуализация/Docker.md` | `docs/containers/docker/legacy-note.md` | REWRITE | Пустая заметка | Создать Docker-раздел с нуля | P1 |
+| `Programming/Брокеры сообщений/Kafka.md` | `docs/messaging/kafka/**` | REWRITE | Смешаны Kafka/RabbitMQ/Redis; много external images; version-sensitive producer/KRaft facts | Тематически переписан; промежуточный legacy-файл удалён | P0 |
+| `Programming/Контейнеризация и виртуализация/Docker.md` | `docs/containers/docker/**` | REWRITE | Пустая заметка | Раздел создан с нуля; legacy placeholder удалён | P1 |
 | `Programming/Сети/!Краткое содержание.md` | `docs/networking/README.md` | MERGE | Block transclusions | Заменён index hierarchy | P0 |
 | `Programming/Сети/Основы организации компьютерных сетей.md` | `docs/networking/fundamentals/networking-basics.md` | UPDATE | Требуется source review | Мигрирован | P1 |
 | `Programming/Сети/Стандартизация сетей.md` | `docs/networking/fundamentals/standardization.md` | UPDATE | Слишком кратко | Мигрирован; дополнить по необходимости | P2 |
@@ -77,7 +77,7 @@
 
 ## Assets и ссылки
 
-Локальных assets нет, поэтому при filesystem migration ничего не теряется. Внешние изображения сохранены в мигрированных source material, но считаются техническим долгом: ключевые схемы нужно заменить Mermaid или самодостаточным текстом во время содержательного rewrite. Публичная навигация не содержит legacy Kafka/Docker pages.
+Локальных assets в исходном Vault не было, поэтому filesystem migration ничего не потеряла. Все внешние Markdown images удалены: важные механизмы изложены самодостаточным текстом, а устаревшие legacy Kafka/Docker/System Design sources удалены из `docs/` и остаются только в Git history.
 
 ## Resolution log
 
@@ -94,3 +94,7 @@
 - 2026-09-10 — Batch 7a: добавлен Linux backend minimum с cgroup v2 и ordered diagnostic workflow на основе man-pages/kernel docs.
 - 2026-09-10 — Batch 7b: пустой Docker placeholder заменён полным section и production Go image; legacy note удалена из docs и восстановима из Git history.
 - 2026-09-10 — Batch 7c: добавлен Kubernetes 1.37 section с workload/network/resource/probe/autoscaling/shutdown semantics и Go runtime links.
+- 2026-09-10 — Batch 7d: добавлены Observability/SLO, architecture/security и 11 ordered production runbooks; security сверена с OWASP Top 10:2025 и RFC 9700.
+- 2026-09-10 — Batch 8: добавлены Ads Service roadmap и interview map по публичным AvitoTech materials; актуальность процесса явно ограничена датой проверки и вакансией.
+- 2026-09-10 — Networking: TCP/UDP/QUIC, DNS, HTTP/1.1–3, TLS/HTTPS переписаны по current RFC; добавлены connection lifecycle, DNS/TLS path, multiplexing, L4/L7 и troubleshooting.
+- 2026-09-10 — Final review: удалены external images и скрытый Kafka duplicate, переписаны слабые DB/network/Go fundamentals, все pages включены в `SUMMARY.md`, every content directory имеет README.

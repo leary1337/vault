@@ -2,26 +2,26 @@
 
 ## Статус
 
-Batch 1 завершён. 50 содержательных страниц перенесены в `docs/` с URL-friendly путями; три index pages пересобраны без Obsidian transclusions. После проверки полноты mapping и ссылок legacy-каталоги `Programming/` и `Templates/` удалены. Старые версии остаются восстановимыми из Git history.
+Миграция и все content batches завершены 2026-09-10. В `docs/` находятся 310 публичных страниц и `SUMMARY.md`; все content pages имеют URL-friendly paths, YAML metadata и navigation entry. Legacy-каталоги `Programming/`/`Templates/`, промежуточные duplicates и внешние изображения удалены после проверки; старые версии восстановимы из Git history.
 
 ## Решения
 
 - GitBook root: `docs/`; навигация: `docs/SUMMARY.md`.
 - Старые block IDs удалены после замены summary transclusions явными ссылками.
 - Исходная дата сохранена как `created`; `updated` ставится только после технической проверки.
-- Локальных assets в исходном Vault не было. Внешние изображения пока учтены как migration debt; они не копируются автоматически.
-- Большая Kafka-заметка сохранена вне публичной навигации как `legacy-overview.md` до тематического rewrite.
-- Пустая Docker-заметка сохранена вне публичной навигации как свидетельство rewrite decision.
+- Локальных assets в исходном Vault не было. Внешние изображения заменены self-contained text и удалены.
+- Большая Kafka-заметка использована для тематического rewrite и удалена из `docs/`, чтобы не создавать второй source of truth.
+- Пустая Docker-заметка удалена после создания полноценного раздела.
 - Obsidian templates не являются частью Backend Knowledge Base и удалены вместе с legacy tree после проверки.
 
 ## Перемещено
 
 - `Programming/Go/**` → `docs/go/{language,data-structures,concurrency,runtime,performance}/**`.
 - `Programming/База данных/**` → `docs/databases/**`.
-- `Programming/Брокеры сообщений/Kafka.md` → `docs/messaging/kafka/legacy-overview.md` как непубличный source material.
+- `Programming/Брокеры сообщений/Kafka.md` → `docs/messaging/kafka/**` как тематический KRaft-oriented rewrite.
 - `Programming/Сети/**` → `docs/networking/{fundamentals,transport,application}/**`.
 - `Programming/System Design/**` → `docs/system-design/fundamentals/**`.
-- Пустая Docker-заметка → `docs/containers/docker/legacy-note.md` как непубличное migration record.
+- Пустая Docker-заметка → `docs/containers/docker/**` как новый production-oriented section.
 
 Точное постраничное отображение зафиксировано в [`VAULT_AUDIT.md`](VAULT_AUDIT.md).
 
@@ -35,7 +35,7 @@ Batch 1 завершён. 50 содержательных страниц пер�
 - 70 Markdown-файлов в `docs/`.
 - 67 уникальных пунктов навигации в `docs/SUMMARY.md`.
 - Нет missing local targets, Obsidian wiki-links и block IDs.
-- Локальных изображений в исходном репозитории не было; внешний image debt записан в backlog и audit.
+- Локальных изображений в исходном репозитории не было; внешние images позднее удалены при content rewrite.
 
 ## Batch 2 — Critical Go
 
@@ -74,7 +74,7 @@ Runtime-материалы переписаны для Go 1.27: G-M-P без mag
 
 ## Batch 5a — Kafka и messaging reliability
 
-Старая монолитная Kafka page оставлена как скрытый legacy source, а публичный раздел переписан в 10 проверенных страниц для Apache Kafka 4.3.1. Current architecture описана как KRaft-only; уточнены sticky/adaptive unkeyed partitioning, `acks=all` относительно текущего ISR, default idempotence, classic/new consumer protocols, share groups, Kafka EOS boundaries и operations.
+Старая монолитная Kafka page заменена 10 проверенными страницами для Apache Kafka 4.3.1 и после финального review удалена из `docs/`. Current architecture описана как KRaft-only; уточнены sticky/adaptive unkeyed partitioning, `acks=all` относительно текущего ISR, default idempotence, classic/new consumer protocols, share groups, Kafka EOS boundaries и operations.
 
 Добавлены Transactional Outbox и Inbox/deduplication с polling/CDC, Debezium, stable event ID и atomic database patterns. Материал проверен по Kafka 4.3 documentation, official release notes/KIPs и Debezium documentation.
 
@@ -120,10 +120,28 @@ Production example использует Go 1.27.1 builder, separate test/build s
 
 Go runtime связан с container-aware `GOMAXPROCS`, cgroup CPU quota, soft `GOMEMLIMIT`, memory headroom и bounded HTTP/gRPC/consumer shutdown. Материал проверен по официальной документации Kubernetes 1.37.
 
+## Batch 7d — Observability, architecture, security и production
+
+Добавлены Observability/OpenTelemetry, metrics/logs/traces, SLI/SLO/SLA, burn-rate alerting и production debugging. Architecture section сравнивает layered/hexagonal/clean/modular approaches через boundaries и trade-offs. Security охватывает authentication/authorization, sessions/tokens, OAuth/OIDC/JWT, password hashing, TLS, secrets, CORS/CSRF/SSRF/injection/path traversal и rate/resource controls.
+
+Production section содержит incident response и 10 symptom runbooks. Каждая diagnostic page проверена на одинаковый порядок `Symptoms → Possible causes → What to measure → Diagnostics → Tools → Immediate mitigation → Root cause → Prevention`. Источники: OpenTelemetry/Prometheus/Google SRE, OWASP Top 10:2025/ASVS, RFC 8446/8725/9700 и профильные primary docs.
+
+## Practice и interviews
+
+Ads Service оформлен как reference roadmap отдельного учебного repository: Go/PostgreSQL/Redis/Kafka, REST/gRPC, Outbox/idempotency, tests, telemetry, profiling, Docker/Kubernetes и graceful lifecycle.
+
+Interview section ссылается на основной контент вместо его копирования. Avito process описан только по публичным AvitoTech materials, проверенным 2026-09-10: публично подтверждены programming/platform, senior system design и final context, но variation по вакансии/уровню отмечена явно.
+
+## Networking и final quality review
+
+Protocol pages TCP/UDP/QUIC, DNS, HTTP/1.1–3, TLS и HTTPS переписаны по актуальным IETF RFC. Добавлены connection establishment/states, TIME_WAIT, keepalive/pools/ephemeral ports, DNS caching, TLS handshake, HTTP multiplexing/HOL, reverse proxy/load balancing и L4/L7.
+
+Финальный проход удалил external Markdown images и hidden Kafka duplicate, исправил слабые Go concurrency/struct, database и networking fundamentals, добавил полезные cross-links и README для каждого content directory. Lightweight PowerShell check теперь проверяет local links/images, frontmatter fields, URL-friendly paths, Obsidian constructs, SUMMARY completeness/duplicates/orphans и directory indexes.
+
 ## Источник конфигурации
 
 Синтаксис `.gitbook.yaml` проверен по [официальной документации GitBook](https://gitbook.com/docs/getting-started/git-sync/content-configuration): пути `structure` считаются относительно `root`.
 
 ## Mapping
 
-Полная таблица source → target находится в `VAULT_AUDIT.md`; последующие технические объединения и удаления будут добавляться после каждого batch.
+Полная историческая таблица source → target и resolution log находятся в `VAULT_AUDIT.md`.

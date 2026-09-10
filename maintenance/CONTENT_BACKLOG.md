@@ -23,4 +23,8 @@
 | Backend architecture и security | P1 | DONE | Boundaries/trade-offs; OWASP Top 10:2025, ASVS и IETF BCP |
 | Practice project | P2 | DONE | Ads Service roadmap связывает contracts, data, reliability и operations |
 | Interview references | P2 | DONE | Public AvitoTech materials checked 2026-09-10; variability disclosed |
-| Final cross-links и content quality review | P0 | TODO | Устранить дубли, external images и unsupported claims |
+| Final cross-links и content quality review | P0 | DONE | External images/legacy duplicate удалены; indexes, metadata, links и key claims проверены |
+
+## Итог
+
+Все обязательные batches мастер-плана завершены 2026-09-10. Новые темы после этой точки добавляются как обычное развитие базы, а не migration debt. Единственное ограничение проверки среды: Go toolchain не установлен, поэтому Go snippets прошли ручной review, но не полный compilation sweep.
