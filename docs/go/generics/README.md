@@ -12,6 +12,12 @@ updated: 2026-09-10
 
 # Generics в Go
 
-Generics позволяют описать алгоритм или структуру данных для набора типов, сохранив compile-time type checking. Порядок чтения: [type parameters](type-parameters.md) → [constraints и type sets](constraints-and-type-sets.md) → [generic types и methods](generic-types.md).
+Generics позволяют описать алгоритм или структуру данных для набора типов, сохранив compile-time type checking.
 
 Version boundary: generic aliases стабильны с Go 1.24; generic methods — с Go 1.27. Interface methods по-прежнему не могут объявлять собственные type parameters.
+
+## Темы
+
+- [Constraints и type sets](constraints-and-type-sets.md)
+- [Generic types, aliases и methods](generic-types.md)
+- [Type parameters](type-parameters.md)

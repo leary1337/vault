@@ -7,14 +7,25 @@ updated: 2026-09-10
 
 # Algorithms
 
-Раздел организован по reusable patterns, а не по списку готовых LeetCode answers. Для каждого паттерна научитесь распознавать invariant, вывести complexity и проверить boundary cases, затем реализуйте без подсказки.
+Раздел содержит алгоритмы, структуры данных и примеры на Go. Каждая тема рассматривает invariant, сложность и граничные случаи.
 
-Порядок: [complexity](complexity.md) → arrays/hash → two pointers/sliding window/prefix sum/binary search → stack/queue/heap/intervals → lists/trees/graphs → sorting/greedy. [Go examples](go-examples.md) показывают idiomatic templates и объясняют стоимость.
+## Темы
 
-Практика:
-
-1. Переформулируйте input/output и constraints.
-2. Назовите brute force и bottleneck.
-3. Выберите invariant/data structure.
-4. До кода запишите time/space и edge cases.
-5. После кода прогоните минимальный, пустой, duplicate и overflow cases.
+- [Arrays и slices](arrays-and-slices.md)
+- [BFS и DFS](bfs-and-dfs.md)
+- [Binary search](binary-search.md)
+- [Complexity](complexity.md)
+- [Go examples](go-examples.md)
+- [Graphs](graphs.md)
+- [Greedy](greedy.md)
+- [Hash tables](hash-tables.md)
+- [Heap](heap.md)
+- [Intervals](intervals.md)
+- [Linked lists](linked-lists.md)
+- [Prefix sum](prefix-sum.md)
+- [Queue и deque](queue-and-deque.md)
+- [Sliding window](sliding-window.md)
+- [Sorting](sorting.md)
+- [Stack](stack.md)
+- [Trees](trees.md)
+- [Two pointers](two-pointers.md)

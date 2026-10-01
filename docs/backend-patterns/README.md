@@ -7,7 +7,7 @@ updated: 2026-09-10
 
 # Backend patterns
 
-Паттерн — не готовое улучшение, а обмен одного failure mode на другой. Начните с [idempotency](idempotency.md), deadline-aware [retries](retries.md) и [backoff/jitter](exponential-backoff-and-jitter.md). Затем изучите защиту от перегрузки: circuit breaker, bulkhead, rate limiting, load shedding и backpressure. Data consistency patterns — Saga, Outbox, CQRS и cache-aside — требуют отдельных invariants и reconciliation.
+Паттерн меняет свойства системы и добавляет свои failure modes. Здесь собраны способы контроля повторов, защиты от перегрузки и согласования данных.
 
 Каждая страница отвечает на одни и те же вопросы:
 
@@ -17,6 +17,24 @@ updated: 2026-09-10
 - когда дополнительная сложность не окупается.
 
 Комбинации важнее отдельных элементов: retries без idempotency создают duplicates, retries без jitter синхронизируют storm, queue без backpressure лишь откладывает overload, circuit breaker без fallback только быстрее возвращает ошибку.
+
+
+## Темы
+
+- [Backpressure](backpressure.md)
+- [Bulkhead](bulkhead.md)
+- [Cache-aside](cache-aside.md)
+- [Circuit breaker](circuit-breaker.md)
+- [CQRS](cqrs.md)
+- [Distributed locks](distributed-locks.md)
+- [Exponential backoff и jitter](exponential-backoff-and-jitter.md)
+- [Idempotency](idempotency.md)
+- [Load shedding](load-shedding.md)
+- [Rate limiting](rate-limiting.md)
+- [Retries](retries.md)
+- [Saga](saga.md)
+- [Singleflight](singleflight.md)
+- [Transactional Outbox](transactional-outbox.md)
 
 ## Связанные разделы
 

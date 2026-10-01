@@ -9,7 +9,7 @@ updated: 2026-09-10
 
 # PostgreSQL
 
-Раздел описывает поведение PostgreSQL 18, а не абстрактной SQL-СУБД. Начните с [архитектуры](architecture.md), [MVCC](mvcc.md) и [транзакций](transactions.md), затем разберите [изоляцию](isolation-levels.md) и [блокировки](locks.md). После этого переходите к индексам и planner, а эксплуатационные темы — WAL, VACUUM, replication и pooling — изучайте вместе.
+Раздел описывает PostgreSQL 18: семантику запросов, конкурентный доступ и эксплуатацию конкретной СУБД.
 
 Для прикладной работы особенно важны две связки:
 
@@ -17,6 +17,26 @@ updated: 2026-09-10
 - `statistics → planner → EXPLAIN`: объясняет, почему сервер выбрал конкретный план.
 
 Страницы не заменяют runbook конкретного кластера: параметры, расширения, topology и допустимый RPO/RTO должны быть зафиксированы отдельно.
+
+
+## Темы
+
+- [Connection pooling](connection-pooling.md)
+- [EXPLAIN](explain.md)
+- [Joins](joins.md)
+- [MVCC](mvcc.md)
+- [Query planner](query-planner.md)
+- [SQL-задачи](sql-interview-tasks.md)
+- [VACUUM и autovacuum](vacuum.md)
+- [Write-Ahead Log](wal.md)
+- [Архитектура PostgreSQL](architecture.md)
+- [Блокировки PostgreSQL](locks.md)
+- [Индексы PostgreSQL](indexes.md)
+- [Пагинация](pagination.md)
+- [Партиционирование](partitioning.md)
+- [Репликация PostgreSQL](replication.md)
+- [Транзакции](transactions.md)
+- [Уровни изоляции PostgreSQL](isolation-levels.md)
 
 ## Источники
 

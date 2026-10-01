@@ -18,9 +18,13 @@ updated: 2026-09-10
 5. Пройти normal, boundary и adversarial examples вручную.
 6. Назвать time/space complexity и limitations.
 
-## Подготовка
+## См. также
 
-Пройдите [complexity](../../algorithms/complexity.md), затем arrays/hash/two pointers/sliding window/binary search, stack/queue/heap, intervals, trees/graphs/BFS/DFS и [Go examples](../../algorithms/go-examples.md). Практикуйте без autocomplete, но после сессии компилируйте и запускайте tests/race detector там, где есть concurrency.
+- [Сложность алгоритмов](../../algorithms/complexity.md)
+- [Алгоритмы и структуры данных](../../algorithms/README.md)
+- [Примеры на Go](../../algorithms/go-examples.md)
+
+Компиляция и тесты проверяют корректность решения; для concurrent-кода полезен race detector.
 
 Оцените не число решённых задач, а долю, где вы сформулировали invariant, нашли counterexample и написали корректную границу. Молчаливый идеальный код слабее проверяемого reasoning.
 

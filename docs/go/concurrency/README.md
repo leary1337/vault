@@ -9,6 +9,17 @@ updated: 2026-09-10
 
 # Concurrency в Go
 
-Порядок чтения: [модель памяти](memory-model.md) → [goroutines](goroutines.md) → [channels](channels.md) → [примитивы синхронизации](sync-primitives.md) → [atomics](atomics.md) → [context](context.md).
+## Темы
 
-Затем переходите к failure modes: [data races](data-races.md), [goroutine leaks](goroutine-leaks.md), [backpressure](backpressure.md) и [graceful shutdown](graceful-shutdown.md). Мигрированные [основы](fundamentals.md) и [паттерны](patterns.md) сохраняют дополнительный материал и будут разделены при следующем проходе.
+- [Atomics](atomics.md)
+- [Backpressure](backpressure.md)
+- [Channels](channels.md)
+- [Context](context.md)
+- [Data races](data-races.md)
+- [Goroutine leaks](goroutine-leaks.md)
+- [Goroutines](goroutines.md)
+- [Graceful shutdown](graceful-shutdown.md)
+- [Модель памяти Go](memory-model.md)
+- [Основы конкурентности в Go](fundamentals.md)
+- [Паттерны конкурентности](patterns.md)
+- [Примитивы синхронизации](sync-primitives.md)

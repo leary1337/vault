@@ -1,13 +1,13 @@
 ---
-title: Практический Go backend-проект
-description: Поэтапный reference roadmap Ads Service с PostgreSQL, Redis, Kafka и observability.
+title: "Ads Service: контракты и компоненты"
+description: "Архитектурный пример Ads Service: контракты, данные, события и эксплуатация."
 tags: [practice, go, backend, project]
 updated: 2026-09-10
 ---
 
-# Практический Go backend-проект
+# Ads Service: контракты и компоненты
 
-Это roadmap самостоятельного Ads Service, а не обязательное приложение внутри repository базы знаний. Реализуйте его в отдельном Git repository и фиксируйте решения в коротких ADR. Ценность проекта — доказать contracts и failure behavior, а не просто подключить десять технологий.
+Ads Service иллюстрирует совместную работу API, PostgreSQL, cache и event pipeline. Разделы можно использовать независимо для обсуждения контрактов, отказов и архитектурных альтернатив. Состав компонентов зависит от требований; решения удобно фиксировать в ADR.
 
 ## Product scope
 
@@ -19,7 +19,7 @@ updated: 2026-09-10
 - добавить/удалить объявление в favorites пользователя;
 - принять просмотр и показать eventually consistent counter.
 
-Сразу запишите non-goals: полнотекстовый поиск, billing, moderation ML, media transcoding. Иначе учебный scope станет бесконечным.
+За пределами этого примера: полнотекстовый поиск, billing, moderation ML и media transcoding.
 
 ## Целевые contracts
 
@@ -36,7 +36,7 @@ POST   /v1/ads/{id}/views  Idempotency-Key: <event-id>
 
 Определите validation, authorization, stable error codes, page/cursor contract, request limits и semantics повторов. `PATCH` возвращает conflict при stale version. Create/view mutation не должны удваивать эффект после retry.
 
-Внутренний gRPC API можно добавить для batch get или moderation capability. Это упражнение в protobuf evolution, deadlines, canonical errors и interceptors, а не замена REST «потому что быстрее».
+Внутренний gRPC API можно добавить для batch get или moderation capability. Такой контракт требует согласованных protobuf evolution, deadlines, canonical errors и interceptors.
 
 ## Data model
 
@@ -49,7 +49,7 @@ PostgreSQL — source of truth:
 
 Money храните integer minor units + currency, timestamps — UTC instant. Foreign keys/constraints поддерживают invariants. Migrations forward/backward compatible: expand → deploy compatible code/backfill → contract. Каждая migration имеет rehearsal на production-like volume и rollback/roll-forward plan.
 
-Redis используйте позже как cache read model/counter buffer, не как обязательный старт. Задайте key schema, TTL+jitter, memory/eviction, invalidation и behavior при недоступности. Favorites correctness остаётся в PostgreSQL.
+Redis — необязательный cache read model/counter buffer. Задайте key schema, TTL+jitter, memory/eviction, invalidation и behavior при недоступности. Favorites correctness остаётся в PostgreSQL.
 
 ## Event flow
 
@@ -69,35 +69,35 @@ migrations          versioned SQL
 deploy              Docker/Kubernetes/observability config
 ```
 
-Начните с [modular monolith](../backend-architecture/modular-monolith.md). Module владеет данными и public contract. Выделение process/service выполняйте только после появления независимого scaling/failure/team boundary.
+Один из вариантов — [modular monolith](../backend-architecture/modular-monolith.md). Module владеет данными и public contract. Выделение process/service выполняйте только после появления независимого scaling/failure/team boundary.
 
-## Этапы реализации
+## Компоненты и свойства
 
-### 1. Walking skeleton
+### Lifecycle процесса
 
 Go process, config validation, `/livez` и `/readyz`, structured logs, request ID/trace setup, graceful shutdown. HTTP server имеет read/header/idle timeouts и bounded body. CI запускает formatting, static analysis, unit tests и docs/schema checks.
 
-### 2. PostgreSQL CRUD
+### Хранение и CRUD
 
 Create/get/update, migrations, transactions и optimistic concurrency. Используйте parameterized SQL и least-privilege DB role. Integration tests поднимают настоящую совместимую PostgreSQL version, проверяют constraints, rollback, concurrent update и cancellation.
 
-### 3. Idempotency и favorites
+### Idempotency и favorites
 
 Idempotency key scoped к caller+operation, request hash обнаруживает повтор ключа с другим body; concurrent duplicates получают один authoritative result. Favorites реализуются unique constraint и идемпотентным desired-state `PUT/DELETE`.
 
-### 4. Cache
+### Cache
 
 Добавьте cache-aside для `GET ad`: bounded TTL+jitter, negative cache осторожно, request coalescing для hot miss. Измерьте hit rate и stale window. Cache failure деградирует latency, но не correctness; защитите PostgreSQL от herd.
 
-### 5. Kafka и Outbox
+### Kafka и Outbox
 
 Relay с leasing/batching/retry, idempotent producer по подходящему contract, consumer group и DLQ/retry policy. Тесты моделируют crash до/после publish/commit, duplicate, reorder и poison record. Lag alert основан на oldest event age.
 
-### 6. Observability
+### Observability
 
-Prometheus RED metrics по route template, pool/Kafka/cache signals и business outcomes с bounded labels. OpenTelemetry context проходит HTTP → SQL/Redis/Kafka → consumer. Logs включают trace ID, но не tokens/PII. Определите SLI: success и latency create/get/update, freshness view counter; задайте учебный SLO и burn alerts.
+Prometheus RED metrics по route template, pool/Kafka/cache signals и business outcomes с bounded labels. OpenTelemetry context проходит HTTP → SQL/Redis/Kafka → consumer. Logs включают trace ID, но не tokens/PII. Определите SLI: success и latency create/get/update, freshness view counter; задайте SLO согласно требованиям и burn alerts.
 
-### 7. Packaging и Kubernetes
+### Packaging и Kubernetes
 
 Multi-stage Docker image, non-root runtime, read-only filesystem где возможно, SBOM/vulnerability process. Kubernetes Deployment/Service/ConfigMap+Secret, requests/limits, startup/readiness/liveness probes, PodDisruptionBudget при необходимости и autoscaling по meaningful signal. Проверьте rolling update и node/pod termination.
 
@@ -123,7 +123,7 @@ Inbound request получает budget. DB/cache/gRPC/Kafka operations испо
 
 Expose `pprof` только на authenticated internal listener. Под load снимите CPU, heap, goroutine/block profiles и сравните с baseline; profiling — средство объяснения, не оптимизация вслепую.
 
-Проект готов к демонстрации, когда:
+При review архитектуры полезны следующие свидетельства:
 
 - clean checkout запускается одной documented командой;
 - migrations и rollback/roll-forward rehearsed;
@@ -134,7 +134,7 @@ Expose `pprof` только на authenticated internal listener. Под load с
 - graceful shutdown не теряет acknowledged work;
 - README объясняет trade-offs и известные ограничения.
 
-## Карта знаний
+## См. также
 
 [Go backend](../go/backend/README.md) · [PostgreSQL](../databases/postgresql/README.md) · [Redis](../databases/redis/README.md) · [Kafka](../messaging/kafka/README.md) · [Outbox](../backend-patterns/transactional-outbox.md) · [Observability](../observability/README.md) · [Docker](../containers/docker/README.md) · [Kubernetes](../containers/kubernetes/README.md) · [Security](../security/README.md)
 

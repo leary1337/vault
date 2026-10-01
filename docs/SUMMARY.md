@@ -324,10 +324,10 @@
   * [Retry storm](production/retry-storm.md)
   * [Thundering herd](production/thundering-herd.md)
 
-## Practice
+## Архитектурные примеры
 
-* [Практика](practice/README.md)
-  * [Практический Go backend-проект](practice/go-backend-project.md)
+* [Примеры](practice/README.md)
+  * [Ads Service: контракты и компоненты](practice/go-backend-project.md)
 
 ## Interviews
 
@@ -338,5 +338,5 @@
     * [Platform](interviews/avito/platform.md)
     * [System Design](interviews/avito/system-design.md)
     * [Final](interviews/avito/final.md)
-    * [Skill matrix](interviews/avito/skill-matrix.md)
+    * [Указатель тем интервью](interviews/avito/skill-matrix.md)
     * [Mock interviews](interviews/avito/mock-interviews.md)

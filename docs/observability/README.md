@@ -9,17 +9,18 @@ updated: 2026-09-10
 
 Observability — способность объяснить внутреннее состояние системы по её выходным сигналам. Это не название стека и не требование «собрать всё»: полезная telemetry должна отвечать на вопросы об impact, scope и cause при ограниченных стоимости и риске утечки данных.
 
-## Порядок изучения
-
-1. [Metrics](metrics.md): агрегированные симптомы и capacity.
-2. [Logs](logs.md): дискретные события и диагностический контекст.
-3. [Tracing](tracing.md): причинный путь запроса между компонентами.
-4. [OpenTelemetry](opentelemetry.md): единый instrumentation и export pipeline.
-5. [SLI, SLO и SLA](sli-slo-sla.md): измеримая цель надёжности.
-6. [Alerting](alerting.md): actionable notification по влиянию и burn rate.
-7. [Production debugging](production-debugging.md): воспроизводимый порядок расследования, затем сценарные [production runbooks](../production/README.md).
-
 Сигналы дополняют друг друга: metric обнаруживает рост latency, exemplar или trace показывает медленный путь, а structured log объясняет конкретный отказ. Ни один сигнал сам по себе не является источником истины о бизнес-результате.
+
+
+## Темы
+
+- [Alerting](alerting.md)
+- [Distributed tracing](tracing.md)
+- [Logs](logs.md)
+- [Metrics](metrics.md)
+- [OpenTelemetry](opentelemetry.md)
+- [Production debugging](production-debugging.md)
+- [SLI, SLO и SLA](sli-slo-sla.md)
 
 ## Минимальный контракт сервиса
 

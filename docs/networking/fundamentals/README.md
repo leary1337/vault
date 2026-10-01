@@ -9,4 +9,16 @@ updated: 2026-09-10
 
 # Сетевой фундамент
 
-Начните с [основ сетей](networking-basics.md), [терминологии](terminology.md), [модели OSI](osi.md) и [модели TCP/IP](tcp-ip-model.md). Затем изучите [IP addressing](ip-addressing.md), [IP](ip.md), [ARP](arp.md), [ICMP](icmp.md) и [sockets](sockets.md).
+## Темы
+
+- [ARP](arp.md)
+- [ICMP](icmp.md)
+- [Internet Protocol](ip.md)
+- [IP-адресация](ip-addressing.md)
+- [Sockets](sockets.md)
+- [Модель ISO OSI](osi.md)
+- [Модель TCP IP](tcp-ip-model.md)
+- [Организация сетей TCP IP](tcp-ip-networking.md)
+- [Основы компьютерных сетей](networking-basics.md)
+- [Стандартизация сетей](standardization.md)
+- [Терминология](terminology.md)

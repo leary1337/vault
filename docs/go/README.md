@@ -8,6 +8,16 @@ updated: 2026-09-10
 
 # Go
 
-Рекомендуемый порядок: [язык](language/README.md) → [generics](generics/README.md) → [структуры данных](data-structures/README.md) → [конкурентность](concurrency/README.md) → [runtime](runtime/README.md) → [профилирование](performance/README.md) → [backend standard library](backend/README.md) → [gRPC](grpc/README.md) → [testing](testing/README.md).
-
 Материалы runtime описывают изменяемые детали реализации и не заменяют спецификацию языка. Страницы, перенесённые из Vault, последовательно проходят повторную техническую проверку.
+
+## Темы
+
+- [Concurrency в Go](concurrency/README.md)
+- [Generics в Go](generics/README.md)
+- [Go backend standard library](backend/README.md)
+- [gRPC в Go](grpc/README.md)
+- [Runtime Go](runtime/README.md)
+- [Testing Go-сервисов](testing/README.md)
+- [Производительность Go](performance/README.md)
+- [Структуры данных Go](data-structures/README.md)
+- [Язык Go](language/README.md)

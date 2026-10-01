@@ -7,7 +7,7 @@ updated: 2026-09-10
 
 # Redis
 
-Redis — in-memory data store с атомарными командами, богатыми структурами данных, expiration, persistence и replication. Раздел ориентирован на Redis Open Source 8.10.1; сначала изучите [структуры](data-structures.md), [кэширование](caching.md) и [управление памятью](expiration-and-eviction.md), затем durability/HA и Cluster.
+Redis — in-memory data store с атомарными командами, богатыми структурами данных, expiration, persistence и replication. Раздел ориентирован на Redis Open Source 8.10.1.
 
 Перед выбором Redis зафиксируйте роль данных:
 
@@ -16,6 +16,19 @@ Redis — in-memory data store с атомарными командами, бо�
 - system of record требует отдельно доказанной durability, backup и consistency модели.
 
 Быстрая команда не означает быстрый запрос любого размера: большие collections, replies, Lua/function execution и массовые operations могут блокировать обработку других клиентов. Проверяйте command complexity и ограничивайте объём работы.
+
+
+## Темы
+
+- [Expiration и eviction](expiration-and-eviction.md)
+- [Hot keys и big keys](hot-keys.md)
+- [Persistence Redis](persistence.md)
+- [Redis Cluster](cluster.md)
+- [Redis Sentinel](sentinel.md)
+- [Кэширование с Redis](caching.md)
+- [Распределённые блокировки Redis](distributed-locks.md)
+- [Репликация Redis](replication.md)
+- [Структуры данных Redis](data-structures.md)
 
 ## Источники
 

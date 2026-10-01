@@ -9,4 +9,13 @@ updated: 2026-09-10
 
 # Язык Go
 
-Начните с [основ](basics.md) и [строк, bytes и runes](strings-bytes-runes.md), затем изучите [функции](functions.md), [замыкания](closures.md), [методы](methods.md), [интерфейсы](interfaces.md), [ошибки](errors.md) и [panic/recover](defer-panic-recover.md). Параметризованные алгоритмы вынесены в раздел [Generics](../generics/README.md).
+## Темы
+
+- [Defer, panic и recover](defer-panic-recover.md)
+- [Strings, bytes и runes](strings-bytes-runes.md)
+- [Замыкания](closures.md)
+- [Интерфейсы в Go](interfaces.md)
+- [Методы](methods.md)
+- [Основы Go](basics.md)
+- [Ошибки в Go](errors.md)
+- [Функции](functions.md)

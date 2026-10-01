@@ -7,7 +7,7 @@ updated: 2026-09-10
 
 # Apache Kafka
 
-Раздел описывает Apache Kafka 4.3.1: current architecture работает только в KRaft mode. Начните с [архитектуры](architecture.md), [topics и partitions](topics-partitions-replication.md), затем пройдите producer и consumer path, delivery semantics и transactions. [Operations](operations.md) связывает эти модели с production signals.
+Раздел описывает Apache Kafka 4.3.1: архитектуру KRaft, хранение записей, доставку и эксплуатацию.
 
 Главные границы гарантий:
 
@@ -17,6 +17,19 @@ updated: 2026-09-10
 - offset commit отмечает позицию, а не факт внешнего side effect.
 
 Старая монолитная заметка удалена после тематического rewrite; при необходимости она восстановима из Git history и не является вторым source of truth.
+
+
+## Темы
+
+- [Consumer groups](consumer-groups.md)
+- [Delivery semantics](delivery-semantics.md)
+- [Kafka consumer](consumer.md)
+- [Kafka producer](producer.md)
+- [Kafka transactions](transactions.md)
+- [KRaft](kraft.md)
+- [Topics, partitions и replication](topics-partitions-replication.md)
+- [Архитектура Kafka](architecture.md)
+- [Эксплуатация Kafka](operations.md)
 
 ## Источники
 

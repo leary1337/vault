@@ -9,11 +9,19 @@ updated: 2026-09-10
 
 # gRPC в Go
 
-Порядок: [Protobuf](protobuf.md) → [unary RPC](unary.md) → [streaming](streaming.md) → [interceptors](interceptors.md) → [errors](errors.md) → [deadlines/cancellation](deadlines-and-cancellation.md).
-
 `grpc.ClientConn` — long-lived virtual connection/channel: она управляет name resolution, subchannels, connectivity и load-balancing policy и должна переиспользоваться. Default `pick_first` выбирает один доступный backend; `round_robin` и другие policies задаются service config. Не создавайте connection на каждый RPC.
 
 Retries не имеют default policy: кроме узких transparent retries, application должна явно настроить retryable methods/codes, attempt budget и idempotency. Наблюдайте call-level и attempt-level metrics.
+
+
+## Темы
+
+- [gRPC deadlines и cancellation](deadlines-and-cancellation.md)
+- [gRPC errors](errors.md)
+- [gRPC interceptors](interceptors.md)
+- [gRPC streaming](streaming.md)
+- [Protobuf contracts](protobuf.md)
+- [Unary RPC](unary.md)
 
 ## Источники
 

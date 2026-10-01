@@ -9,6 +9,15 @@ updated: 2026-09-10
 
 # Производительность Go
 
-Начните с [pprof](pprof.md), затем используйте [runtime trace](runtime-trace.md) для scheduler/blocking и [benchmarks](benchmarks.md) для воспроизводимого сравнения. [Escape analysis](escape-analysis.md), [race detector](race-detector.md) и [PGO](pgo.md) применяются после постановки конкретного вопроса.
+Профили и benchmarks помогают отвечать на разные вопросы о стоимости выполнения, allocations, blocking и compiler decisions.
 
 Оптимизация должна опираться на измерения, а не на общие утверждения о скорости языка или отдельной конструкции.
+
+## Темы
+
+- [Benchmarks](benchmarks.md)
+- [Escape analysis](escape-analysis.md)
+- [pprof](pprof.md)
+- [Profile-guided optimization](pgo.md)
+- [Race detector](race-detector.md)
+- [Runtime trace](runtime-trace.md)

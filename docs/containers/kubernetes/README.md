@@ -9,9 +9,22 @@ updated: 2026-09-10
 
 Раздел ориентирован на Kubernetes 1.37. Kubernetes reconciles declarative desired state; он не исправляет application semantics, плохие probes или отсутствие graceful shutdown.
 
-Читайте: Pod → Deployment → Service/Ingress/networking → configuration/resources/probes → autoscaling/shutdown → troubleshooting. Связывайте manifests с [Linux cgroups](../../linux/cgroups.md), [Docker/container fundamentals](../docker/README.md) и runtime behavior Go.
-
 Не копируйте YAML без проверки API version, feature gates, admission policies и конкретной реализации CNI/Ingress/CSI/cloud. Core contracts общие, data plane и extensions различаются.
+
+
+## Темы
+
+- [Autoscaling](autoscaling.md)
+- [ConfigMap и Secret](configmap-and-secret.md)
+- [Deployment](deployment.md)
+- [Graceful shutdown](graceful-shutdown.md)
+- [Ingress](ingress.md)
+- [Kubernetes networking](networking.md)
+- [Kubernetes troubleshooting](troubleshooting.md)
+- [Pod](pod.md)
+- [Probes](probes.md)
+- [Resources](resources.md)
+- [Service](service.md)
 
 ## Источники
 

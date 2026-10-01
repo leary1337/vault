@@ -31,4 +31,4 @@ QoS/classification может отдавать приоритет traffic classe
 
 Layers разделяют contracts: link доставляет frame на local segment, IP маршрутизирует datagrams между networks, transport создаёт process-to-process semantics, application задаёт messages/operations. Encapsulation полезна для reasoning, но implementations/proxies/offloads пересекают уровни.
 
-Начните с [OSI](osi.md) как vocabulary и [TCP/IP model](tcp-ip-model.md) как Internet stack, затем [IP](ip.md), [sockets](sockets.md) и transports.
+Связанные темы: [OSI](osi.md), [TCP/IP model](tcp-ip-model.md), [IP](ip.md), [sockets](sockets.md) и transport protocols.
