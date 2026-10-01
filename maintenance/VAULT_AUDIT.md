@@ -1,5 +1,7 @@
 # Vault audit
 
+> Исторический отчёт прежней миграции. Его утверждения о полной проверке не заменяют независимый review. Текущий охват, ограничения и ранние локальные assets описаны в [KNOWLEDGE_BASE_AUDIT.md](KNOWLEDGE_BASE_AUDIT.md) и [HISTORICAL_ASSETS.md](HISTORICAL_ASSETS.md).
+
 Аудит начат 2026-09-10 перед удалением legacy paths. Он охватывает Markdown в `Programming/`, Obsidian templates, root files, ссылки и assets.
 
 ## Сводка

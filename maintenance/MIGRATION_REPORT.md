@@ -1,5 +1,7 @@
 # Migration report
 
+> Исторический отчёт прежней миграции. Его утверждения о полной проверке не заменяют независимый review. Текущий охват, ограничения и ранние локальные assets описаны в [KNOWLEDGE_BASE_AUDIT.md](KNOWLEDGE_BASE_AUDIT.md) и [HISTORICAL_ASSETS.md](HISTORICAL_ASSETS.md).
+
 ## Статус
 
 Миграция и все content batches завершены 2026-09-10. В `docs/` находятся 310 публичных страниц и `SUMMARY.md`; все content pages имеют URL-friendly paths, YAML metadata и navigation entry. Legacy-каталоги `Programming/`/`Templates/`, промежуточные duplicates и внешние изображения удалены после проверки; старые версии восстановимы из Git history.

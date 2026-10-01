@@ -1,5 +1,24 @@
 # Content backlog
 
+Актуальное состояние независимой проверки на 2026-10-01. Это служебный перечень качества материалов, не порядок обучения. Статусы старой миграции ниже не означают, что вся база технически подтверждена.
+
+| Область | Статус | Оставшаяся работа |
+|---|---|---|
+| Тематическая навигация | DONE | Маршруты и reading chains убраны; URL сохранены |
+| Go language/runtime/backend/testing/profiling/tooling | PARTIAL | Ключевые version-sensitive claims проверены; точный охват в KNOWLEDGE_BASE_AUDIT.md. Полный независимый review остальных claims и compilation sweep всех snippets ещё нужен |
+| Исторический авторский материал | PARTIAL | Сохранены существующие хорошие объяснения и channel table; array/subslice example восстановлен. Полное сравнение всех старых больших System Design/networking текстов ещё нужно |
+| Исторические assets | OWNER REVIEW | 55 файлов и дубликаты перечислены в HISTORICAL_ASSETS.md; выяснить авторство/лицензии перед восстановлением binary assets |
+| PostgreSQL, Redis, Kafka, Kubernetes, Linux, architecture, security, observability, production | TODO | Независимо проверить версии, настройки и технические claims; исходные DONE отражают прежнюю миграцию |
+| Ads Service | TODO | Архитектурный пример, не reference implementation. Нужен отдельный contract review HTTP preconditions, durable counters/replay, shutdown и telemetry |
+| Interviews | PARTIAL | Исторические описания Avito сверены с публикациями 2023/2025; текущий процесс конкретной вакансии уточнять у компании |
+| Локальные ссылки, assets, frontmatter, SUMMARY | DONE | check-docs + 14 regression fixtures; checker ограничен поддерживаемым Markdown/frontmatter format |
+| Внешние источники | PARTIAL | Проверены 67 URL изменённых страниц; OWASP отвечает 308, Redis 403. Полная проверка внешних ссылок и их релевантности не выполнялась |
+| Go runtime на Linux в контейнере | TODO | GOMAXPROCS/cgroups и production tuning сопоставлены с API/source, но не воспроизведены на Linux host |
+
+## Исторический backlog миграции 2026-09-10
+
+Ниже сохранён прежний отчёт для provenance. Его DONE и формулировка о завершении относятся к выполнению прежнего мастер-плана, а не к независимому аудиту 2026-10-01.
+
 Статусы: `TODO`, `IN PROGRESS`, `DONE`. Приоритеты отражают риск неправильного применения материала, а не только объём темы.
 
 | Topic | Priority | Status | Notes |
