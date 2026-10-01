@@ -1,14 +1,75 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$RepositoryRoot = (Join-Path $PSScriptRoot '..')
+)
 
 $ErrorActionPreference = 'Stop'
-$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$repositoryRoot = [IO.Path]::GetFullPath($RepositoryRoot)
 $docsRoot = Join-Path $repositoryRoot 'docs'
 $summaryPath = Join-Path $docsRoot 'SUMMARY.md'
 $errors = [Collections.Generic.List[string]]::new()
 
 function Add-CheckError([string]$message) {
     $errors.Add($message)
+}
+
+function Remove-FencedCode([string]$text) {
+    return [regex]::Replace($text, '(?ms)^ {0,3}(`{3,}|~{3,})[^\r\n]*\r?\n.*?^ {0,3}\1[ \t]*\r?$', '')
+}
+
+$anchorCache = @{}
+function Get-MarkdownAnchors([string]$path) {
+    if ($anchorCache.ContainsKey($path)) { return ,$anchorCache[$path] }
+    $anchors = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $counts = @{}
+    $text = Remove-FencedCode (Get-Content -Raw -LiteralPath $path)
+    foreach ($heading in [regex]::Matches($text, '(?m)^ {0,3}#{1,6}\s+(.+?)\s*#*\s*$')) {
+        $label = $heading.Groups[1].Value
+        if ($label -match '\{#([^}]+)\}\s*$') {
+            [void]$anchors.Add($Matches[1])
+            $label = $label -replace '\s*\{#[^}]+\}\s*$', ''
+        }
+        $label = [regex]::Replace($label, '\[([^\]]+)\]\([^)]+\)', '$1')
+        $slug = ($label.ToLowerInvariant() -replace '<[^>]+>', '' -replace '[^\p{L}\p{N}\p{M}_\-\s]', '') -replace '\s', '-'
+        $number = if ($counts.ContainsKey($slug)) { $counts[$slug] } else { 0 }
+        $counts[$slug] = $number + 1
+        if ($number -gt 0) { $slug = "$slug-$number" }
+        [void]$anchors.Add($slug)
+    }
+    foreach ($id in [regex]::Matches($text, '(?i)\b(?:id|name)=["'']([^"'']+)["'']')) {
+        [void]$anchors.Add($id.Groups[1].Value)
+    }
+    $anchorCache[$path] = $anchors
+    return ,$anchors
+}
+
+function Test-LocalDestination([IO.FileInfo]$file, [string]$destination) {
+    $relativePath = [IO.Path]::GetRelativePath($repositoryRoot, $file.FullName).Replace('\', '/')
+    $destination = $destination.Trim()
+    if ($destination.StartsWith('<')) {
+        $destination = ($destination -split '>', 2)[0].Substring(1)
+    } else {
+        $destination = ($destination -split '\s+["'']', 2)[0]
+    }
+    if ($destination -match '^(?:[a-z][a-z0-9+.-]*:|//)') { return }
+    $parts = $destination -split '#', 2
+    $target = ($parts[0] -split '\?', 2)[0]
+    try {
+        $decoded = [Uri]::UnescapeDataString($target).Replace('/', [IO.Path]::DirectorySeparatorChar)
+        $resolved = if ($target.Length -eq 0) { $file.FullName } else {
+            [IO.Path]::GetFullPath((Join-Path $file.DirectoryName $decoded))
+        }
+        if (-not (Test-Path -LiteralPath $resolved)) {
+            Add-CheckError "$relativePath -> missing local target: $destination"
+        } elseif ($parts.Count -gt 1 -and $parts[1] -and [IO.Path]::GetExtension($resolved) -eq '.md') {
+            $fragment = [Uri]::UnescapeDataString($parts[1])
+            if (-not (Get-MarkdownAnchors $resolved).Contains($fragment)) {
+                Add-CheckError "$relativePath -> missing Markdown anchor: $destination"
+            }
+        }
+    } catch {
+        Add-CheckError "$relativePath -> invalid local target: $destination ($($_.Exception.Message))"
+    }
 }
 
 $markdownFiles = Get-ChildItem -LiteralPath $docsRoot -Recurse -File -Filter '*.md'
@@ -33,19 +94,35 @@ foreach ($file in $markdownFiles) {
         Add-CheckError "$relativePath has no YAML frontmatter"
     }
     if ($content.StartsWith('---')) {
-        if ($content -notmatch '(?s)\A---\r?\n.+?\r?\n---\r?\n') {
+        $frontmatterMatch = [regex]::Match($content, '(?s)\A---\r?\n(.+?)\r?\n---\r?\n')
+        if (-not $frontmatterMatch.Success) {
             Add-CheckError "$relativePath has malformed frontmatter delimiters"
         }
-        if ($content -notmatch '(?m)^title:\s*.+$') {
+        $frontmatter = $frontmatterMatch.Groups[1].Value
+        $keys = [regex]::Matches($frontmatter, '(?m)^([a-z][a-z0-9_-]*):') | ForEach-Object { $_.Groups[1].Value }
+        foreach ($duplicate in ($keys | Group-Object | Where-Object Count -gt 1)) {
+            Add-CheckError "$relativePath frontmatter contains duplicate key: $($duplicate.Name)"
+        }
+        foreach ($scalar in [regex]::Matches($frontmatter, '(?m)^(?:title|description):[ \t]*(.+)$')) {
+            $value = $scalar.Groups[1].Value.Trim()
+            if ($value -notmatch '^["'']' -and $value -match ':\s') {
+                Add-CheckError "$relativePath frontmatter scalar containing colon must be quoted"
+            }
+        }
+        if ($frontmatter -notmatch '(?m)^title:[ \t]*\S[^\r\n]*\r?$') {
             Add-CheckError "$relativePath frontmatter has no title"
         }
-        if ($content -notmatch '(?m)^description:\s*.+$') {
+        if ($frontmatter -notmatch '(?m)^description:[ \t]*\S[^\r\n]*\r?$') {
             Add-CheckError "$relativePath frontmatter has no description"
         }
-        if ($content -notmatch '(?m)^tags:\s*(?:\[[^\]]*\])?\s*$') {
-            Add-CheckError "$relativePath frontmatter has no tags"
+        if ($frontmatter -notmatch '(?m)^tags:[ \t]*(?:\[[^\]\r\n]+\][ \t]*\r?$|\r?\n(?:[ \t]+-[ \t]+\S[^\r\n]*\r?\n?)+)') {
+            Add-CheckError "$relativePath frontmatter has no nonempty tags list"
         }
-        if ($content -notmatch '(?m)^updated:\s*\d{4}-\d{2}-\d{2}\s*$') {
+        $dateMatch = [regex]::Match($frontmatter, '(?m)^updated:[ \t]*(\d{4}-\d{2}-\d{2})[ \t]*\r?$')
+        $parsedDate = [datetime]::MinValue
+        if (-not $dateMatch.Success -or -not [datetime]::TryParseExact(
+            $dateMatch.Groups[1].Value, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::None, [ref]$parsedDate)) {
             Add-CheckError "$relativePath frontmatter has no valid updated date"
         }
     }
@@ -62,7 +139,7 @@ foreach ($file in $markdownFiles) {
     }
 
     # Code such as `table[0](value)` is not a Markdown link.
-    $contentWithoutCode = [regex]::Replace($content, '(?s)```.*?```', '')
+    $contentWithoutCode = Remove-FencedCode $content
     $contentWithoutCode = [regex]::Replace($contentWithoutCode, '`[^`\r\n]+`', '')
     if ($docsRelativePath -ne 'SUMMARY.md') {
         $h1Count = [regex]::Matches($contentWithoutCode, '(?m)^#\s+.+$').Count
@@ -72,32 +149,37 @@ foreach ($file in $markdownFiles) {
     }
     $matches = [regex]::Matches($contentWithoutCode, '!?(?<!\!)\[[^\]]*\]\(([^)]+)\)')
     foreach ($match in $matches) {
-        $destination = $match.Groups[1].Value.Trim()
-        if ($destination.StartsWith('<') -and $destination.EndsWith('>')) {
-            $destination = $destination.Substring(1, $destination.Length - 2)
+        Test-LocalDestination $file $match.Groups[1].Value
+    }
+    $definitions = @{}
+    foreach ($definition in [regex]::Matches($contentWithoutCode, '(?m)^ {0,3}\[([^\]]+)\]:[ \t]*(<[^>]+>|\S+)')) {
+        $label = ($definition.Groups[1].Value.Trim() -replace '\s+', ' ').ToLowerInvariant()
+        $definitions[$label] = $definition.Groups[2].Value
+        Test-LocalDestination $file $definition.Groups[2].Value
+    }
+    foreach ($reference in [regex]::Matches($contentWithoutCode, '!?\[([^\]\r\n]+)\]\[([^\]\r\n]*)\]')) {
+        $label = if ($reference.Groups[2].Value) { $reference.Groups[2].Value } else { $reference.Groups[1].Value }
+        $label = ($label.Trim() -replace '\s+', ' ').ToLowerInvariant()
+        if (-not $definitions.ContainsKey($label)) {
+            Add-CheckError "$relativePath -> undefined reference link: $label"
         }
-        $destination = ($destination -split '#', 2)[0]
-        $destination = ($destination -split '\s+"', 2)[0]
-        if ([string]::IsNullOrWhiteSpace($destination) -or
-            $destination -match '^(https?:|mailto:|tel:|data:)') {
-            continue
-        }
-
-        try {
-            $decoded = [Uri]::UnescapeDataString($destination).Replace('/', [IO.Path]::DirectorySeparatorChar)
-            $resolved = [IO.Path]::GetFullPath((Join-Path $file.DirectoryName $decoded))
-            if (-not (Test-Path -LiteralPath $resolved)) {
-                Add-CheckError "$relativePath -> missing local target: $destination"
-            }
-        } catch {
-            Add-CheckError "$relativePath -> invalid local target: $destination"
-        }
+    }
+    foreach ($asset in [regex]::Matches($contentWithoutCode, '(?i)<(?:img|source)\b[^>]*\bsrc=["'']([^"'']+)["'']')) {
+        Test-LocalDestination $file $asset.Groups[1].Value
     }
 }
 
 $summary = Get-Content -Raw -LiteralPath $summaryPath
-$summaryTargets = [regex]::Matches($summary, '\[[^\]]+\]\(([^)]+\.md)\)') |
-    ForEach-Object { $_.Groups[1].Value }
+$summaryTargets = [regex]::Matches($summary, '\[[^\]]+\]\(([^)]+)\)') |
+    ForEach-Object {
+        $target = ($_.Groups[1].Value -split '#', 2)[0].Trim('<', '>')
+        $resolved = [IO.Path]::GetFullPath((Join-Path $docsRoot ([Uri]::UnescapeDataString($target))))
+        $normalized = [IO.Path]::GetRelativePath($docsRoot, $resolved).Replace('\', '/')
+        if ($normalized.StartsWith('../') -or [IO.Path]::GetExtension($resolved) -ne '.md') {
+            Add-CheckError "SUMMARY.md -> target must be a Markdown page inside docs: $target"
+        }
+        $normalized
+    }
 $duplicates = $summaryTargets | Group-Object | Where-Object Count -gt 1
 foreach ($duplicate in $duplicates) {
     Add-CheckError "SUMMARY.md contains duplicate target: $($duplicate.Name)"
@@ -122,6 +204,7 @@ foreach ($file in $markdownFiles) {
 
 $contentDirectories = Get-ChildItem -LiteralPath $docsRoot -Recurse -Directory
 foreach ($directory in $contentDirectories) {
+    if (-not (Get-ChildItem -LiteralPath $directory.FullName -Recurse -File -Filter '*.md')) { continue }
     if (-not (Test-Path -LiteralPath (Join-Path $directory.FullName 'README.md') -PathType Leaf)) {
         $relativeDirectory = [IO.Path]::GetRelativePath($repositoryRoot, $directory.FullName).Replace('\', '/')
         Add-CheckError "$relativeDirectory has no README.md index"
@@ -129,7 +212,7 @@ foreach ($directory in $contentDirectories) {
 }
 
 if ($errors.Count -gt 0) {
-    $errors | ForEach-Object { Write-Error $_ }
+    $errors | ForEach-Object { [Console]::Error.WriteLine($_) }
     exit 1
 }
 
