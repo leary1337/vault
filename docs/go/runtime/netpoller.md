@@ -5,14 +5,16 @@ tags:
   - go
   - runtime
   - networking
-updated: 2026-09-10
+updated: 2026-10-01
 ---
 
 # Netpoller
 
 > Это описание standard Go runtime 1.27, а не гарантия language specification.
 
-`net` package обычно переводит поддерживаемые sockets в non-blocking mode и регистрирует их в platform poller. Goroutine, которой пока нельзя завершить read/write, park. Когда OS сообщает readiness или deadline истекает, runtime делает соответствующую goroutine runnable.
+Runtime связывает сетевые операции `net` с механизмом ожидания OS. На Linux используются non-blocking sockets и epoll, на BSD/macOS — kqueue, на Windows — overlapped I/O и IOCP. Поэтому универсально описывать все платформы только через readiness неправильно.
+
+Если операция пока не может продолжиться, goroutine park. Событие poller или истечение deadline позволяет ей снова стать runnable; это не гарантия немедленного выполнения и не признак получения целого application message.
 
 Backend consequence: тысячи mostly-idle connections не требуют тысячи одновременно работающих OS threads. Но каждая connection всё равно потребляет FD, kernel buffers, Go objects и application buffers.
 
@@ -30,5 +32,7 @@ Network deadlines устанавливают абсолютное время д�
 ## Источники
 
 - [`net` package](https://pkg.go.dev/net)
-- [Runtime netpoll source](https://go.dev/src/runtime/netpoll.go)
+- [Runtime netpoll, Go 1.27.1](https://github.com/golang/go/blob/go1.27.1/src/runtime/netpoll.go)
+- [Linux epoll backend, Go 1.27.1](https://github.com/golang/go/blob/go1.27.1/src/runtime/netpoll_epoll.go)
+- [Windows IOCP backend, Go 1.27.1](https://github.com/golang/go/blob/go1.27.1/src/runtime/netpoll_windows.go)
 - [Go diagnostics: execution tracer](https://go.dev/doc/diagnostics#execution-tracer)

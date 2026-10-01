@@ -4,7 +4,7 @@ description: Граница между гарантиями языка и standa
 tags:
   - go
   - runtime
-updated: 2026-09-10
+updated: 2026-10-01
 created: 2024-07-24
 ---
 
@@ -33,7 +33,7 @@ Application code редко должен управлять runtime напрям
 - `runtime.Version`, `GOOS`, `GOARCH` — build/runtime context;
 - `runtime.NumGoroutine` — моментальный count, не leak detector;
 - `runtime/metrics` — стабильнее и масштабируемее многих `ReadMemStats` use cases;
-- `runtime.GOMAXPROCS` — явная настройка parallelism, отключающая automatic default behavior;
+- `runtime.GOMAXPROCS(n)` — при `n > 0` ручная настройка parallelism, отключающая automatic updates; при `n <= 0` чтение текущего значения;
 - `runtime.LockOSThread` — только для thread-affine OS/foreign APIs;
 - `runtime.GC` — диагностический/специализированный инструмент, не регулярная оптимизация.
 

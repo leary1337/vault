@@ -5,7 +5,7 @@ tags:
   - go
   - compiler
   - runtime
-updated: 2026-09-10
+updated: 2026-10-01
 created: 2024-07-27
 ---
 
@@ -15,7 +15,9 @@ Standard toolchain parses source, type-checks packages, преобразует �
 
 ## Packages и build cache
 
-`go build` строит package dependency graph и переиспользует content-addressed build cache. Module versions фиксируются в `go.mod`/`go.sum`; build constraints и `GOOS`/`GOARCH` выбирают files.
+`go build` строит package dependency graph и переиспользует build cache. `go.mod` задаёт module requirements; выбранные версии определяются module graph и minimal version selection с учётом `replace`/`exclude` и workspace. `go.sum` хранит checksums содержимого модулей и их `go.mod`, а не является lockfile выбранных зависимостей. Build constraints и `GOOS`/`GOARCH` выбирают files.
+
+С Go 1.21 `go` directive задаёт минимально требуемую версию Go; `toolchain` предлагает toolchain для работы с главным модулем. При `GOTOOLCHAIN=auto` команда может переключиться на более новую toolchain. Это отличается от language version конкретного пакета: например, семантика loop variables определяется его `go` directive/build constraints.
 
 ```bash
 go build ./cmd/service
@@ -53,6 +55,8 @@ CPU profile может влиять на optimization decisions через `-pgo
 
 ## Источники
 
+- [Go Modules Reference: MVS и go.sum](https://go.dev/ref/mod)
+- [Go Toolchains](https://go.dev/doc/toolchain)
 - [Go command documentation](https://pkg.go.dev/cmd/go)
 - [Go compiler command](https://pkg.go.dev/cmd/compile)
 - [Go linker command](https://pkg.go.dev/cmd/link)

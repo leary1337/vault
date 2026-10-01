@@ -4,7 +4,7 @@ description: Lexical capture, lifetime, escape и concurrency hazards замык
 tags:
   - go
 created: 2024-07-24
-updated: 2026-09-10
+updated: 2026-10-01
 ---
 
 # Замыкания
@@ -18,13 +18,15 @@ updated: 2026-09-10
 Замыкания часто используются для создания функций, которые запоминают свое окружение. Например, можно создать счетчик с помощью замыкания:
 ```go
 func counter() func() int {
-    count := 0
-    return func() int {
-        count++
-        return count
-    }
+	count := 0
+	return func() int {
+		count++
+		return count
+	}
 }
+```
 
+```go
 increment := counter()
 fmt.Println(increment()) // 1
 fmt.Println(increment()) // 2
@@ -39,12 +41,14 @@ fmt.Println(increment()) // 3
 Пример с изменением переменных:
 ```go
 func adder(base int) func(int) int {
-    return func(i int) int {
-        base += i
-        return base
-    }
+	return func(i int) int {
+		base += i
+		return base
+	}
 }
+```
 
+```go
 addFive := adder(5)
 fmt.Println(addFive(2)) // 7
 fmt.Println(addFive(3)) // 10
@@ -54,6 +58,39 @@ fmt.Println(addFive(3)) // 10
 
 Замыкания полезны в тех случаях, когда необходимо передать или вернуть функцию, которая сохраняет состояние или имеет доступ к определенным данным. Они часто используются в функциональном программировании и обработке событий, где требуется передавать функции как аргументы.
 
+### Захват переменной цикла
+
+Замыкание захватывает переменную, а не неизменный снимок её значения. Для language version Go 1.22+ переменные, объявленные циклом (`:=`), создаются отдельно для каждой итерации. Версию определяет `go` directive модуля или build constraint файла; новая toolchain не меняет автоматически семантику старого пакета.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	var callbacks []func() int
+	for _, n := range []int{1, 2, 3} {
+		callbacks = append(callbacks, func() int { return n })
+	}
+	for _, f := range callbacks {
+		fmt.Println(f()) // go 1.22+: 1, 2, 3; go 1.21: 3, 3, 3
+	}
+}
+```
+
+Если переменная объявлена вне цикла и используется `for _, n = range ...`, она остаётся общей во всех версиях. Независимые переменные итераций также не защищают общий объект, на который они указывают, от data race. Счётчик из первого примера предназначен для последовательных вызовов; одновременные вызовы без synchronization создают race на `count`.
+
 ### Краткое содержание
 
 **Замыкания в Go** позволяют создавать функции, которые сохраняют доступ к переменным из внешнего контекста. Это делает их мощным инструментом для управления состоянием и реализации функциональных стилей программирования. Замыкания могут запоминать и изменять значения переменных, даже после завершения внешней функции.
+
+## См. также
+
+- [Функции](functions.md)
+- [Data races](../concurrency/data-races.md)
+
+## Источники
+
+- [Go specification: Function literals](https://go.dev/ref/spec#Function_literals)
+- [Go specification: For statements](https://go.dev/ref/spec#For_statements)
+- [Fixing For Loops in Go 1.22](https://go.dev/blog/loopvar-preview)

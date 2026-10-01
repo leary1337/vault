@@ -4,20 +4,20 @@ description: Request lifecycle, handlers, middleware, bodies и streaming в net
 tags:
   - go
   - http
-updated: 2026-09-10
+updated: 2026-10-01
 ---
 
 # `net/http`
 
-Server принимает connection, читает request, выбирает handler через `ServeMux` и вызывает `ServeHTTP(ResponseWriter, *Request)`. Handler должен завершить работу при cancellation и не сохранять `ResponseWriter` после return.
+Server принимает connection, читает request и вызывает `ServeHTTP(ResponseWriter, *Request)` своего `Handler`; если Handler равен nil, используется `DefaultServeMux`. `ServeMux` — один из вариантов маршрутизации, можно передать собственный handler/router. Handler должен учитывать cancellation и не использовать `ResponseWriter` после return.
 
 ```go
 type Handler interface {
-    ServeHTTP(http.ResponseWriter, *http.Request)
+	ServeHTTP(http.ResponseWriter, *http.Request)
 }
 ```
 
-`HandlerFunc` адаптирует function. Current `ServeMux` поддерживает method/host/path patterns; более специфичный pattern выигрывает, конфликтующие patterns могут вызвать panic при registration.
+`HandlerFunc` адаптирует function. С Go 1.22 `ServeMux` поддерживает method/host/path patterns и path wildcards; более специфичный pattern выигрывает, конфликтующие patterns вызывают panic при registration. `GODEBUG=httpmuxgo121=1` возвращает правила Go 1.21. Эти правила относятся к ServeMux, а не к любому router.
 
 ## Middleware
 
@@ -25,10 +25,10 @@ Middleware оборачивает handler и отвечает за одну boun
 
 ```go
 func withRequestID(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        id := newRequestID()
-        next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDKey{}, id)))
-    })
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := newRequestID()
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDKey{}, id)))
+	})
 }
 ```
 
@@ -42,7 +42,8 @@ func withRequestID(next http.Handler) http.Handler {
 
 Для streaming проверяйте `http.Flusher`, context cancellation и backpressure. Response buffering/proxy timeouts могут нивелировать flush; это end-to-end свойство.
 
-## Sources
+## Источники
 
 - [`net/http`](https://pkg.go.dev/net/http)
 - [`http.ServeMux`](https://pkg.go.dev/net/http#ServeMux)
+- [Go 1.22: enhanced routing](https://go.dev/doc/go1.22#enhanced_routing_patterns)

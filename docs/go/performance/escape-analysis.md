@@ -5,7 +5,7 @@ tags:
   - go
   - performance
   - compiler
-updated: 2026-09-10
+updated: 2026-10-01
 ---
 
 # Escape analysis
@@ -25,4 +25,4 @@ Workflow: profile allocations → найдите hot allocator → подтве�
 ## Источники
 
 - [`cmd/compile`](https://pkg.go.dev/cmd/compile)
-- [Go blog: Allocating on the Stack](https://go.dev/blog/all#allocating-on-the-stack)
+- [Escape analysis invariants, Go 1.27.1](https://github.com/golang/go/blob/go1.27.1/src/cmd/compile/internal/escape/escape.go)

@@ -7,12 +7,12 @@ tags:
   - production
 level:
   - senior
-updated: 2026-09-10
+updated: 2026-10-01
 ---
 
 # HTTP client и Transport
 
-`http.Client` и `http.Transport` безопасны для concurrent use и должны переиспользоваться. Client на каждый request разрушает pooling; Transport на каждый request создаёт новые pools и sockets.
+`http.Client` и `http.Transport` безопасны для concurrent use; обычно их создают один раз и переиспользуют. Пул соединений принадлежит Transport. Новый `Client` с `Transport: nil` использует общий `http.DefaultTransport`, поэтому сам по себе не уничтожает pooling. Новый отдельный Transport на каждый request лишает запросы общего пула.
 
 ```go
 transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -24,8 +24,8 @@ transport.TLSHandshakeTimeout = 5 * time.Second
 transport.ResponseHeaderTimeout = 3 * time.Second
 
 client := &http.Client{
-    Transport: transport,
-    Timeout:   5 * time.Second,
+	Transport: transport,
+	Timeout:   5 * time.Second,
 }
 ```
 
@@ -75,5 +75,5 @@ Transport использует resolver и proxy configuration (`ProxyFromEnviro
 
 - [`http.Client`](https://pkg.go.dev/net/http#Client)
 - [`http.Transport`](https://pkg.go.dev/net/http#Transport)
-- [Transport retry source](https://go.dev/src/net/http/transport.go)
+- [Transport retry source, Go 1.27.1](https://github.com/golang/go/blob/go1.27.1/src/net/http/transport.go)
 - [`net/http/httptrace`](https://pkg.go.dev/net/http/httptrace)

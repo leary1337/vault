@@ -114,6 +114,12 @@ case <-ctx.Done():
 3. Почему большой buffer способен ухудшить tail latency?
 4. Есть ли у `select` строгая fairness guarantee?
 
+## См. также
+
+- [Модель памяти](memory-model.md)
+- [Backpressure](backpressure.md)
+- [Goroutine leaks](goroutine-leaks.md)
+
 ## Источники
 
 - [Go specification: Channel types](https://go.dev/ref/spec#Channel_types)

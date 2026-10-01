@@ -4,7 +4,7 @@ description: Generic functions, type arguments и type inference в Go 1.27.
 tags:
   - go
   - generics
-updated: 2026-09-10
+updated: 2026-10-01
 ---
 
 # Type parameters
@@ -13,20 +13,24 @@ Type parameter — placeholder для конкретного типа, выбр�
 
 ```go
 func Index[S ~[]E, E comparable](items S, target E) int {
-    for i, item := range items {
-        if item == target {
-            return i
-        }
-    }
-    return -1
+	for i, item := range items {
+		if item == target {
+			return i
+		}
+	}
+	return -1
 }
 
 type IDs []int64
+```
 
+```go
 idx := Index(IDs{10, 20}, 20) // inferred: S=IDs, E=int64
 ```
 
-`~[]E` сохраняет named slice type `S`; параметр `[]E` вернул бы обычный slice type. Compiler часто выводит type arguments из function arguments и assignment context. Если inference неоднозначна, укажите часть или все arguments: `Index[IDs](...)`.
+`S ~[]E` позволяет вывести `S=IDs` и тип элемента `E=int64`. В этом примере `Index` возвращает `int`: результат поиска не является slice. Сохранение named slice type важно для функций, которые возвращают `S`, например `func Clone[S ~[]E, E any](s S) S`. Параметр `[]E` тоже принимает `IDs`, но возврат `[]E` не сохраняет имя `IDs`.
+
+Compiler выводит type arguments из аргументов вызова; для присваивания самой generic function переменной подходящего function type inference также может использовать контекст. Это не означает вывод параметров вызова только из ожидаемого типа результата. Если inference неоднозначна, укажите часть или все arguments: `Index[IDs](...)`.
 
 ## Ограничения
 

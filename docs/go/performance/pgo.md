@@ -24,4 +24,3 @@ Profile — build input: храните provenance, workload и Go version; не
 ## Источники
 
 - [Profile-guided optimization](https://go.dev/doc/pgo)
-- [PGO user guide](https://go.dev/doc/pgo)

@@ -5,7 +5,7 @@ tags:
   - go
   - performance
   - testing
-updated: 2026-09-10
+updated: 2026-10-01
 ---
 
 # Benchmarks
@@ -14,14 +14,14 @@ updated: 2026-09-10
 
 ```go
 func BenchmarkEncode(b *testing.B) {
-    input := makeFixture()
-    for b.Loop() {
-        encode(input)
-    }
+	input := makeFixture()
+	for b.Loop() {
+		encode(input)
+	}
 }
 ```
 
-Setup до первого `Loop` и cleanup после него не входят в measured interval; compiler сохраняет результаты calls внутри loop живыми. Не смешивайте `B.Loop` и loop по `b.N`.
+Setup до первого `Loop` и cleanup после него не входят в measured interval. В проверенной toolchain Go 1.27.1 compiler сохраняет arguments/results вызовов и присвоенные переменные внутри синтаксического `for b.Loop() { ... }` живыми; условие должно быть записано именно как `b.Loop()`. Это защита от удаления измеряемой работы, а не обещание отключить все оптимизации или сохранить работу внутри любой helper function. Не смешивайте `B.Loop` и loop по `b.N`.
 
 ```bash
 go test -run='^$' -bench=BenchmarkEncode -benchmem -count=10 ./pkg > before.txt

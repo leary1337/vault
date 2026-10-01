@@ -8,7 +8,7 @@ tags:
 level:
   - middle
   - senior
-updated: 2026-09-10
+updated: 2026-10-01
 created: 2024-07-30
 ---
 
@@ -35,14 +35,14 @@ Size hint помогает заранее подобрать storage, но не 
 
 ```go
 fmt.Println(nilMap["missing"]) // 0
-nilMap["key"] = 1             // panic
+nilMap["key"] = 1              // panic
 ```
 
 ## Чтение и запись
 
 ```go
-value := m[key]       // zero value, если key отсутствует
-value, ok := m[key]   // ok различает missing и stored zero value
+value := m[key]     // zero value, если key отсутствует
+value, ok := m[key] // ok различает missing и stored zero value
 m[key] = value
 ```
 
@@ -88,7 +88,7 @@ Booleans, numbers, strings, pointers, channels, interfaces, arrays и structs м
 
 ## Современная реализация
 
-> Деталь реализации Go 1.27, не гарантия языка.
+> Деталь реализации standard Go runtime 1.27.1, не гарантия языка.
 
 Начиная с Go 1.24 builtin map реализована на основе Swiss Tables. Старые объяснения через `hmap`, primary buckets, overflow buckets, `B`, `oldbuckets` и evacuation описывают legacy implementation и не должны использоваться для объяснения current performance.
 
@@ -148,4 +148,4 @@ Lookup начинает с group, выбранной по hash, и следуе�
 - [Go specification: Map types](https://go.dev/ref/spec#Map_types)
 - [Go blog: Faster Go maps with Swiss Tables](https://go.dev/blog/swisstable)
 - [Go 1.24 Release Notes: map implementation](https://go.dev/doc/go1.24#runtime)
-- [Current runtime map source](https://go.dev/src/internal/runtime/maps/map.go)
+- [Go 1.27.1 map source](https://github.com/golang/go/blob/go1.27.1/src/internal/runtime/maps/map.go)

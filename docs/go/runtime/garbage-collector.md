@@ -7,7 +7,7 @@ tags:
   - gc
 level:
   - senior
-updated: 2026-09-10
+updated: 2026-10-01
 created: 2024-07-27
 ---
 
@@ -17,7 +17,7 @@ created: 2024-07-27
 
 Runtime использует concurrent tracing mark-and-sweep collector. Roots включают stacks и globals; mark следует по pointers и определяет reachable objects, sweep делает unreachable storage доступным allocator. Короткие stop-the-world phases нужны для transitions/root coordination, основная mark work выполняется concurrently с application.
 
-Write barrier сохраняет корректность tri-color marking, пока application меняет pointers. Collector non-moving: он не compact-ит живые objects, поэтому fragmentation и span occupancy важны для RSS.
+Write barrier сохраняет корректность marking, пока application меняет pointers. Collector не перемещает живые heap objects и не compact-ит их, поэтому fragmentation и span occupancy важны для RSS. Это не обещание неподвижности всех адресов: runtime может перемещать goroutine stack при изменении его размера.
 
 ## Green Tea
 
@@ -72,3 +72,5 @@ Heap profile — sampled. Один snapshot не доказывает leak; ср
 - [Go 1.26 Release Notes: Green Tea](https://go.dev/doc/go1.26#runtime)
 - [The Green Tea Garbage Collector](https://go.dev/blog/greenteagc)
 - [Go diagnostics](https://go.dev/doc/diagnostics)
+- [GC algorithm, Go 1.27.1](https://github.com/golang/go/blob/go1.27.1/src/runtime/mgc.go)
+- [Stack copying, Go 1.27.1](https://github.com/golang/go/blob/go1.27.1/src/runtime/stack.go)
