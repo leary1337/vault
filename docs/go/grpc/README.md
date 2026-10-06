@@ -4,10 +4,12 @@ description: Protobuf contracts, RPC lifecycle, streaming, interceptors и resil
 tags:
   - go
   - grpc
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # gRPC в Go
+
+gRPC вызывает метод другого сервиса через сеть. Protobuf задаёт контракт сообщений; context ограничивает жизнь RPC, status сообщает исход. Сначала нужен ясный контракт данных и отказов: соединение, retries и streaming не устраняют неопределённый результат сетевой команды.
 
 `grpc.ClientConn` — long-lived virtual connection/channel: она управляет name resolution, subchannels, connectivity и load-balancing policy и должна переиспользоваться. Default `pick_first` выбирает один доступный backend; `round_robin` и другие policies задаются service config. Не создавайте connection на каждый RPC.
 

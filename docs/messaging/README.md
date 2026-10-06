@@ -3,12 +3,12 @@ title: Messaging
 description: Брокеры сообщений и надёжная доставка событий.
 tags:
   - messaging
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Messaging
 
-Kafka, Transactional Outbox и Inbox описывают доставку событий и границу между брокером и authoritative database.
+Kafka, Transactional Outbox и Inbox описывают доставку событий и границу между брокером и базой достоверных данных.
 
 Материалы ориентированы на Apache Kafka 4.3.1 и KRaft-only clusters. ZooKeeper упоминается только как legacy migration context.
 

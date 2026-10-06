@@ -3,7 +3,7 @@ title: Базы данных
 description: Основы хранения данных и практический PostgreSQL.
 tags:
   - databases
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Базы данных

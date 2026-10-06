@@ -2,14 +2,16 @@
 title: Query planner
 description: Statistics, cost model, join order и plan cache.
 tags: [databases, postgresql, performance]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Query planner
 
+Планировщик оценивает способы выполнения по статистике. Если ожидает 10 строк, а получает миллион, выбранный алгоритм может стать очень дорогим.
+
 Planner перечисляет допустимые paths и выбирает план с наименьшей оценочной cost. Cost — безразмерная модель, а не миллисекунды; её компоненты зависят от оценённого числа rows, I/O, CPU, parallelism и параметров сервера.
 
-## Statistics
+## Статистика
 
 `ANALYZE` собирает samples и хранит в `pg_statistic`/`pg_stats`:
 
@@ -51,8 +53,47 @@ Planner не знает реальную текущую cache residency, буд�
 4. Сократите объём данных раньше, добавьте подходящий index или перепишите запрос.
 5. Повторите измерение на репрезентативных данных.
 
+## Перекос распределения
+
+```sql
+CREATE TABLE plan_orders(id integer PRIMARY KEY,tenant_id integer NOT NULL);
+INSERT INTO plan_orders
+SELECT n,CASE WHEN n<=90000 THEN 1 ELSE n END
+FROM generate_series(1,100000) AS n;
+CREATE INDEX plan_orders_tenant_idx ON plan_orders(tenant_id);
+ANALYZE plan_orders;
+PREPARE find_tenant(integer) AS SELECT * FROM plan_orders WHERE tenant_id=$1;
+EXPLAIN EXECUTE find_tenant(1);
+EXPLAIN EXECUTE find_tenant(99999);
+DEALLOCATE find_tenant;
+```
+
+Для tenant 1 подходят 90000 строк, для 99999 одна. Первая ситуация может предпочесть Seq Scan, вторая Index Scan. PostgreSQL при auto сначала использует custom plans и затем сравнивает общий план со средней стоимостью custom. Prepared statement не всегда generic. Для диагностики в отдельной сессии сравните force_custom_plan и force_generic_plan через plan_cache_mode; это эксперимент, не глобальное исправление.
+
+Коррелированные поля страны и города требуют extended statistics; они помогают внутри таблицы, но не исправляют автоматически любую оценку join нескольких таблиц. Statistics target увеличивает детализацию и стоимость ANALYZE. Не превращайте отключение Seq Scan в постоянный обход неправильной статистики.
+
 ## Источники
 
 - [Planner statistics](https://www.postgresql.org/docs/18/planner-stats.html)
 - [Query planning configuration](https://www.postgresql.org/docs/18/runtime-config-query.html)
 - [Prepared statements](https://www.postgresql.org/docs/18/sql-prepare.html)
+
+## Проверь себя
+
+1. **Почему одному SQL нужны разные планы для разных tenants?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   Одна строка и 90% таблицы имеют разную стоимость index/heap чтения.
+
+   </details>
+
+2. **cost=100 означает 100 ms?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   Нет, это относительная стоимость модели.
+
+   </details>

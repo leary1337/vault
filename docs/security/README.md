@@ -2,10 +2,12 @@
 title: Backend security
 description: Identity, transport, secrets и защита backend boundaries.
 tags: [security, backend, owasp]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Backend security
+
+Безопасность начинается с конкретных вопросов: кто обращается к сервису, какие действия ему разрешены и какие данные он может подменить. Здесь разобраны вход в систему, права на объекты, токены, пароли, секреты и защищённые соединения. Примеры показывают, почему успешная аутентификация ещё не разрешает чужие ресурсы.
 
 Security — набор проверяемых свойств системы, а не middleware в конце проекта. Сначала моделируют assets, actors, trust boundaries и abuse cases; затем применяют least privilege, secure defaults, defense in depth и observable failure handling.
 

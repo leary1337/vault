@@ -2,17 +2,12 @@
 title: Docker
 description: Images, containers, resources, security и production Go builds.
 tags: [containers, docker]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Docker
 
-Image — immutable content-addressed filesystem/config template; container — isolated process с writable layer и runtime configuration. Docker использует Linux namespaces/cgroups, а не создаёт отдельный kernel/VM.
-
-Container должен быть replaceable: config снаружи, durable data в volume/service, logs в stdout/stderr, shutdown bounded. Image build воспроизводим, сканируем и отделён от runtime secrets.
-
-Исходная пустая Obsidian-страница удалена после полного rewrite; она остаётся доступна в Git history.
-
+Образ — шаблон файлов и настроек, container — запущенный из него процесс с собственным окружением. На Linux containers делят ядро host; в Docker Desktop обычно используется Linux VM. Приложение должно уметь принимать config, ограничивать resources и корректно останавливаться.
 
 ## Темы
 

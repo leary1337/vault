@@ -6,13 +6,15 @@ tags:
   - language
 level:
   - middle
-updated: 2026-09-10
+updated: 2026-10-06
 created: 2024-07-25
 ---
 
 # Основы Go
 
-Go — компилируемый статически типизированный язык общего назначения. Его стандартная библиотека и tooling хорошо подходят для сетевых сервисов, но язык не гарантирует, что программа автоматически будет быстрее аналога на другом языке: результат зависит от алгоритма, I/O, allocation rate, конкуренции за ресурсы и качества реализации.
+Значение — то, что копируется при присваивании. Тип определяет разрешённые операции; нулевое значение появляется автоматически, а не из конструктора.
+
+Go — компилируемый статически типизированный язык общего назначения. Его стандартная библиотека и tooling хорошо подходят для сетевых сервисов, но язык не гарантирует, что программа автоматически будет быстрее аналога на другом языке: результат зависит от алгоритма, I/O, allocation (выделение памяти) rate, конкуренции за ресурсы и качества реализации.
 
 Страница ориентирована на Go 1.27. Для байтов и Unicode см. [Strings, bytes и runes](strings-bytes-runes.md).
 
@@ -33,13 +35,13 @@ Zero value многих библиотечных типов сразу поле�
 ## `var`, short declaration и assignment
 
 ```go
-var retries int          // 0
+var retries int // 0
 timeout := 2 * time.Second
-value, ok := cache[key]  // multi-value assignment
+value, ok := cache[key] // multi-value assignment
 left, right = right, left
 ```
 
-`:=` объявляет хотя бы одну новую non-blank переменную в текущем scope; остальные имена слева могут быть переиспользованы. Assignment копирует значение. Для slice, map, channel, function, pointer и interface копия может ссылаться на общее underlying state — это не pass-by-reference.
+`:=` объявляет хотя бы одну новую non-blank переменную в текущем scope; остальные имена слева могут быть переиспользованы. Assignment копирует значение. Для slice, map, channel, function, pointer и interface копия может ссылаться на общее underlying (базовый) state — это не pass-by-reference.
 
 ## `new` и `make`
 
@@ -55,7 +57,7 @@ m := make(map[string]int) // готовая map
 ch := make(chan int, 8)   // buffered channel
 ```
 
-`&T{}` обычно выразительнее `new(T)`, когда нужен pointer на struct. Место фактического хранения — stack или heap — решает compiler escape analysis, а не синтаксис `new`.
+`&T{}` обычно выразительнее `new(T)`, когда нужен pointer на struct. Место фактического хранения — stack (стек вызовов goroutine) или heap (куча, область хранения объектов с управляемым временем жизни) — решает compiler escape (выход срока жизни объекта за пределы локального stack frame) analysis, а не синтаксис `new`.
 
 ## Conversion не assertion
 
@@ -80,6 +82,7 @@ Interface values сравнимы синтаксически, но comparison п
 ```go
 var a any = []int{1}
 var b any = []int{1}
+
 // _ = a == b // panic: comparing uncomparable type []int
 ```
 
@@ -96,9 +99,9 @@ const typed int64 = 1 << 40
 type State uint8
 
 const (
-    StateUnknown State = iota
-    StateReady
-    StateClosed
+	StateUnknown State = iota
+	StateReady
+	StateClosed
 )
 ```
 
@@ -109,23 +112,29 @@ const (
 - Параметры и результаты функций передаются по значению.
 - Порядок evaluation определён не для всех подвыражений; не стройте код на неоговорённом порядке.
 - Размеры `int`, `uint` и `uintptr` implementation-specific: 32 или 64 бита.
-- `string` — immutable sequence of bytes, но не гарантия валидного UTF-8.
+- `string` — immutable (неизменяемый после создания) sequence of bytes, но не гарантия валидного UTF-8.
 - Layout внутренних descriptors для string/slice/map/interface не является API.
 
 ## Типичные ошибки
 
-- Путать копирование descriptor со deep copy данных.
+- Путать копирование descriptor (небольшое значение с описанием общих данных) со deep copy данных.
 - Писать в nil map или ждать операции на nil channel.
 - Игнорировать overflow/truncation при numeric conversion.
 - Сравнивать interface values, не учитывая dynamic comparability.
 - Полагаться на benchmark другого проекта или обещать фиксированный выигрыш «от переписывания на Go».
 
-## Вопросы для самопроверки
+## Область видимости и незаметное затенение
 
-1. Почему передача slice в функцию остаётся передачей по значению?
-2. Чем `new([]byte)` отличается от `make([]byte, 0)`?
-3. Когда comparison двух interface values вызывает panic?
-4. Чем untyped constant отличается от переменной?
+```go
+n := 1
+if true {
+	n := 2         // новая переменная во внутреннем блоке
+	fmt.Println(n) // 2
+}
+fmt.Println(n) // 1
+```
+
+Так же можно случайно скрыть `err` внутри `if` и вернуть прежнюю ошибку. `:=` не означает «обновить всё слева»: смотрите на область объявления. `go vet ./...` полезен для стандартных подозрительных конструкций, но не доказывает корректность бизнес-логики.
 
 ## Источники
 
@@ -133,3 +142,16 @@ const (
 - [Effective Go: allocation with `new` and `make`](https://go.dev/doc/effective_go#allocation_new)
 - [Go 1.26 Release Notes: initialized `new`](https://go.dev/doc/go1.26#language)
 - [Go 1.27 Release Notes](https://go.dev/doc/go1.27)
+
+## Проверь себя
+
+1. Что напечатает пример с двумя n?
+2. Почему new не обещает выделение в heap?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. 2, затем 1: внутреннее объявление создаёт другую переменную.
+2. Язык гарантирует корректный срок жизни, а место хранения решает компилятор.
+
+</details>

@@ -2,21 +2,23 @@
 title: Security в System Design
 description: Threat model, identity, authorization, data и abuse controls.
 tags: [system-design, security]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Security в System Design
 
-Security review начинается с assets, actors, trust boundaries и abuse cases. TLS rectangle без authorization/data lifecycle не является design.
+Безопасность проектируется по конкретным путям данных и полномочиям каждого участника.
 
-## Checklist
+Security review начинается с assets, actors, trust boundaries и abuse cases. TLS rectangle без authorization/data lifecycle (кто создаёт, останавливает и освобождает ресурс) не является design.
+
+## Вопросы для проверки
 
 - Authentication: human/service identity, credential lifecycle, MFA/workload identity.
 - Authorization: deny by default, object/tenant/action checks на server, least privilege.
-- Transport/storage: TLS, encryption at rest, key rotation и ownership.
+- Transport/storage: TLS, encryption at rest, key rotation и ownership (владение данными или ответственность за ресурс).
 - Secrets: dedicated secret store, short-lived credentials, no logs/images/repos.
 - Input/output: size/schema validation, injection-safe APIs, SSRF allowlists, safe file handling.
-- Data: classification, minimization, retention/delete, backup and telemetry copies.
+- Data: classification, minimization, retention/delete, backup and telemetry (диагностические данные: метрики, логи и traces) copies.
 - Abuse: rate/cost limits, enumeration resistance, replay/idempotency, moderation.
 - Supply chain: pinned/verifiable artifacts, dependency scanning, controlled deploy.
 - Audit: tamper-resistant security events с ограниченным доступом.
@@ -33,3 +35,22 @@ Threat model пересматривают при новом data flow/provider. 
 
 - [OWASP API Security Top 10](https://owasp.org/API-Security/)
 - [NIST SP 800-207 Zero Trust Architecture](https://csrc.nist.gov/publications/detail/sp/800-207/final)
+
+## На конкретном примере
+
+Для `GET /ads/42` authentication доказывает пользователя, authorization разрешает ему этот ad и поля. Даже существующий пользователь не должен видеть чужой draft. Фоновый индексатор тоже имеет tenant scope, иначе поиск раскроет private данные в обход API.
+
+Для upload временный URL ограничен объектом, действием и сроком; файл остаётся в карантине до проверки конкретной версии. Для server-side URL preview проверяем исходный и каждый redirect IP, иначе SSRF попадёт в metadata/private network. Добавление TLS не исправит объектные права или ошибку политики.
+
+## Проверь себя
+
+1. Чем authentication отличается от authorization?
+2. Где опасен SSRF?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Кто ты и что тебе разрешено — разные проверки.
+2. В серверной загрузке адреса, включая DNS и цепочку redirects.
+
+</details>

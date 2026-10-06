@@ -2,10 +2,12 @@
 title: Dockerfile
 description: Build context, instructions, multi-stage и runtime command semantics.
 tags: [containers, docker, dockerfile]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Dockerfile
+
+Dockerfile — рецепт сборки образа. Build запускает инструкции и сохраняет результат; container потом запускает уже готовый executable с заданными аргументами.
 
 Dockerfile описывает build stages. Build context — доступные builder files; `COPY ../secret` не должен обходить его. `.dockerignore` уменьшает context и риск утечки.
 
@@ -35,7 +37,33 @@ Shell form запускает `/bin/sh -c`, меняет signal/PID semantics и
 
 Объединяйте package install + cleanup в один `RUN` для layer correctness, но не склеивайте всё ценой нечитаемого cache graph. Tests/scans выполняются отдельным target/CI gate.
 
+## Build и run легко перепутать
+
+```dockerfile
+FROM alpine:3.22
+RUN printf 'built\n' > /message.txt
+ENTRYPOINT ["cat"]
+CMD ["/message.txt"]
+```
+
+Учебный образ: `docker build -t message .`, затем `docker run --rm message` печатает `built`. `docker run --rm message /etc/os-release` заменяет CMD, но сохраняет ENTRYPOINT и вызовет `cat /etc/os-release`. `RUN` при старте container повторно не выполняется. Версия base здесь пример, а не рекомендация последнего patch; для воспроизводимости фиксируют digest (криптографический идентификатор конкретного содержимого).
+
+Dockerfile context задаётся последним аргументом build, а путь файла — `-f`; это независимые вещи. Если context слишком широк, `.dockerignore` должен исключать credentials и ненужные данные до передачи builder.
+
 ## Источники
 
 - [Dockerfile reference](https://docs.docker.com/reference/dockerfile/)
 - [Build secrets](https://docs.docker.com/build/building/secrets/)
+
+## Проверь себя
+
+1. Что заменяет аргумент после image у docker run?
+2. Удалит ли RUN rm секрет из раннего COPY?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Обычно CMD/default args, ENTRYPOINT сохраняется.
+2. Нет, он остаётся в нижнем layer; secrets не должны попадать туда вообще.
+
+</details>

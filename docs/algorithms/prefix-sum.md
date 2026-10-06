@@ -2,10 +2,12 @@
 title: Prefix sum
 description: Быстрые суммы диапазонов и balance state.
 tags: [algorithms, prefix-sum]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Prefix sum
+
+Префиксная сумма хранит итог от начала до каждой границы. Сумма участка — разность двух итогов, поэтому после подготовки вычисляется за O(1).
 
 ## Что решает
 
@@ -25,7 +27,7 @@ sum(l, r exclusive) = prefix[r] - prefix[l]
 
 Для count subarrays с sum K храните frequencies предыдущих prefixes: текущему `p` нужны `p-K`.
 
-## Complexity
+## Сложность
 
 Build `O(n)` time/space, range query `O(1)`. Streaming variant использует `O(k)` map. 2D prefix даёт `O(rows×cols)` build и `O(1)` rectangle sum.
 
@@ -40,3 +42,42 @@ Build `O(n)` time/space, range query `O(1)`. Streaming variant использу�
 - longest equal zeros/ones через balance;
 - product except self через prefix/suffix;
 - range additions difference array.
+
+## Числа и границы
+
+Для a=[2,-1,3] prefix=[0,2,1,4]. Участок [1,3) содержит -1 и3: prefix[3]-prefix[1]=4-2=2. Дополнительный нулевой элемент делает пустой префикс обычной границей.
+
+```go
+func countSum(a []int64, target int64) int64 {
+	seen := map[int64]int64{0: 1}
+	var sum, answer int64
+	for _, value := range a {
+		sum += value
+		answer += seen[sum-target]
+		seen[sum]++
+	}
+	return answer
+}
+```
+
+Для [1,-1,1], target=1 ответ3: [0,1), [0,3), [2,3). Сначала lookup, потом запись: при target=0 иначе посчитаете пустой отрезок текущего prefix. Инвариант map: частоты только **предыдущих** границ. Число отрезков может быть n(n+1)/2, поэтому int64 нужен и для ответа. Суммы также должны укладываться в int64; тип не даёт бесконечной точности.
+
+## Проверь себя
+
+1. **Зачем seen[0]=1?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   Чтобы учитывать отрезки, начинающиеся с нулевого индекса.
+
+   </details>
+
+2. **Почему map содержит частоты, а не bool?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   Одинаковые предыдущие суммы задают несколько подходящих начал.
+
+   </details>

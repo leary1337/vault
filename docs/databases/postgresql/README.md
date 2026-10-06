@@ -4,12 +4,12 @@ description: Архитектура, транзакции, запросы и э�
 tags:
   - databases
   - postgresql
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # PostgreSQL
 
-Раздел описывает PostgreSQL 18: семантику запросов, конкурентный доступ и эксплуатацию конкретной СУБД.
+Раздел описывает PostgreSQL 18.6: семантику запросов, конкурентный доступ и эксплуатацию конкретной СУБД.
 
 Для прикладной работы особенно важны две связки:
 
@@ -42,3 +42,5 @@ updated: 2026-09-10
 
 - [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/)
 - [PostgreSQL versioning policy](https://www.postgresql.org/support/versioning/)
+
+- [PostgreSQL 18.6 release notes](https://www.postgresql.org/docs/18/release-18-6.html)

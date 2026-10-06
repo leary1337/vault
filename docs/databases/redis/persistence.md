@@ -2,10 +2,12 @@
 title: Persistence
 description: RDB, AOF, fsync, restart и backup trade-offs.
 tags: [databases, redis, durability]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Persistence Redis
+
+Persistence сохраняет состояние Redis для перезапуска. RDB делает снимок, AOF сохраняет историю записей. Сохранённый файл на одном хосте не защищает от потери самого хоста.
 
 Redis Open Source поддерживает RDB snapshots, AOF, их комбинацию или работу без persistence. Выбор начинается с допустимой потери данных и recovery time, а не с default configuration.
 
@@ -34,7 +36,48 @@ AOF записывает write commands и восстанавливает datase
 
 Cache с воспроизводимыми данными часто может работать без persistence, но restart тогда создаёт cold-cache surge — capacity primary storage должна его выдержать.
 
+## Окно потери и память
+
+```mermaid
+flowchart LR
+    Write[Запись] --> RAM[Память Redis]
+    RAM --> AOF[Буфер AOF и файл]
+    AOF --> Fsync[fsync по политике]
+    RAM --> Fork[Дочерний процесс снимка]
+    Fork --> RDB[RDB]
+```
+
+```text
+INFO persistence
+# rdb_last_bgsave_status, aof_last_write_status,
+# aof_last_bgrewrite_status, текущие фоновые операции
+```
+
+При RDB раз в 5 минут crash может потерять изменения после последнего успешного снимка, а не обязательно ровно 5 минут: предыдущий save мог не пройти. everysec обычно имеет окно примерно секунды, но I/O задержки и настройки rewrite могут увеличить его; не продавайте это как жёсткий SLA 1s. Реплика, получившая write, ещё не обязательно fsync-нула его.
+
+Fork использует copy-on-write: ребёнок видит старый снимок, а изменения parent копируют страницы. При большом dataset и churn оставляйте RAM headroom. В Redis 8.10 есть BACKUP для MP-AOF; новую команду не следует применять как универсальную замену независимой истории и restore drill без проверки конфигурации.
+
 ## Источники
 
 - [Redis persistence](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)
 - [Latency caused by fork](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/)
+
+## Проверь себя
+
+1. **Почему everysec не означает гарантированную потерю не более 1s?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   Планировщик, I/O и настройки могут задержать fsync; это обычное поведение, не абсолютная граница.
+
+   </details>
+
+2. **Что replication не исправляет в ошибочном DEL?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   Удаление передаётся replica и журналу; требуется независимое восстановление.
+
+   </details>

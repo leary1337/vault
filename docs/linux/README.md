@@ -2,14 +2,14 @@
 title: Linux для backend engineer
 description: Processes, memory, networking, cgroups и диагностика Linux.
 tags: [linux, production]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Linux для backend engineer
 
-Раздел объясняет minimum, необходимый для чтения production signals: process/thread/syscall, file descriptors и sockets, virtual memory/page cache/RSS, CPU/load average, epoll, signals, cgroup v2 и namespaces.
+Раздел объясняет устройство Linux для диагностики серверных программ: process/thread/syscall, file descriptors и sockets, virtual memory/page cache/RSS, CPU/load average, epoll, signals, cgroup v2 и namespaces.
 
-Linux metrics имеют scope. Host `free` и container `memory.current`, process RSS и Go heap, CPU utilization и load average отвечают на разные вопросы. Всегда фиксируйте host/container/PID/cgroup, интервал и workload.
+Показатели Linux имеют область измерения. Host `free` и container `memory.current`, process RSS и Go heap, CPU utilization и load average отвечают на разные вопросы. Всегда фиксируйте host/container/PID/cgroup, интервал и workload.
 
 Основные первичные источники — [Linux man-pages](https://man7.org/linux/man-pages/) и [kernel documentation](https://docs.kernel.org/).
 

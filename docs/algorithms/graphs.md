@@ -2,10 +2,12 @@
 title: Graphs
 description: Representation, shortest paths, DAG и disjoint sets.
 tags: [algorithms, graphs]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Graphs
+
+Граф описывает связи между объектами. Перед алгоритмом определите направление, веса, наличие отрицательных рёбер и способ хранения соседей.
 
 ## Что решает
 
@@ -23,7 +25,7 @@ Entities — vertices, relations/transitions — edges; path/cycle/component/ord
 - topological sort для DAG dependencies;
 - Union-Find для incremental undirected connectivity.
 
-## Complexity
+## Сложность
 
 BFS/DFS `O(V+E)`. Dijkstra adjacency list + heap `O((V+E) log V)`. Topological `O(V+E)`. Union-Find amortized почти constant (`O(α(V))`).
 
@@ -38,3 +40,38 @@ BFS/DFS `O(V+E)`. Dijkstra adjacency list + heap `O((V+E) log V)`. Topological `
 - connected components;
 - minimum spanning tree;
 - evaluate paths/state transitions.
+
+## Dijkstra и отрицательное ребро
+
+A→B=2, A→C=5, C→B=-4. Если алгоритм окончательно фиксирует B с distance2 до обхода C, он пропустит путь A→C→B стоимость1. Условие неотрицательных весов нужно для доказательства, не только оптимизации.
+
+```mermaid
+flowchart LR
+    A -->|2| B
+    A -->|5| C
+    C -->|-4| B
+```
+
+Для Dijkstra без decrease-key кладут новую пару distance/node после улучшения и игнорируют извлечённую устаревшую пару. Куча может хранить O(E) записей; оценка O((V+E)logV) обычно подразумевает обычный простой граф и heap assumptions. Указывайте вариант реализации.
+
+Topological sort Kahn: положить vertices с indegree0, снять, уменьшить indegree соседей. Граф A→C,B→C даёт A,B,C или B,A,C; порядок не уникален. Если обработано меньше V, есть cycle и частичный список нельзя объявлять полным расписанием. Union-Find подходит undirected connectivity, не доказывает направление reachability. Path compression и rank/size дают амортизированную α(V).
+
+## Проверь себя
+
+1. **Почему Dijkstra не допускает отрицательные веса?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   Фиксация ближайшей вершины перестаёт быть доказуемо окончательной.
+
+   </details>
+
+2. **Как Kahn обнаруживает cycle?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   При cycle не все V vertices будут извлечены после истощения очереди indegree0.
+
+   </details>

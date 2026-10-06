@@ -2,24 +2,27 @@
 title: Retries
 description: Bounded retry transient failures в рамках deadline.
 tags: [backend, patterns, reliability]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Retries
 
-## Problem
 
-Краткий network loss, leader change или overload может завершить иначе успешную operation ошибкой.
+Retry — повтор запроса после ошибки; клиент не всегда знает, завершилась ли первая попытка.
 
-## Mechanism
+## Проблема
 
-Повторяйте только классифицированные transient failures, ограниченное число раз, в рамках общего deadline и retry budget. Каждый attempt имеет timeout, между attempts — [exponential backoff с jitter](exponential-backoff-and-jitter.md). Уважайте server `Retry-After`.
+Краткий network loss, leader (узел, координирующий запись) change или overload может завершить иначе успешную operation ошибкой.
 
-## Guarantees
+## Как работает
 
-Retry повышает вероятность успеха при transient fault. Он не гарантирует success и не определяет исход предыдущего timed-out attempt; side effect должен быть [idempotent](idempotency.md).
+Повторяйте только классифицированные transient (временный, потенциально устранимый повтором) failures, ограниченное число раз, в рамках общего deadline (крайний срок завершения) и retry budget. Каждый attempt имеет timeout, между attempts — [exponential backoff с jitter](exponential-backoff-and-jitter.md). Уважайте server `Retry-After`.
 
-## Failure modes
+## Гарантии и границы
+
+Retry повышает вероятность успеха при transient fault. Он не гарантирует success и не определяет исход предыдущего timed-out attempt; side effect должен быть [idempotent (без второго эффекта при повторе одного намерения)](idempotency.md).
+
+## Ошибки и отказы
 
 - retry storm умножает нагрузку на уже больной dependency;
 - retries нескольких layers перемножаются;
@@ -27,15 +30,15 @@ Retry повышает вероятность успеха при transient faul
 - общий deadline исчерпан, но новый attempt стартует;
 - unsafe operation создаёт duplicates.
 
-## Trade-offs
+## Компромиссы
 
-Success rate растёт ценой tail latency и дополнительной нагрузки. Budget резервирует небольшую долю traffic/attempts на retry и прекращает их при массовом failure.
+Success rate растёт ценой tail latency (срок ответа) и дополнительной нагрузки. Budget резервирует небольшую долю traffic/attempts на retry и прекращает их при массовом failure.
 
-## When not to use
+## Когда не применять
 
 Не retry-те явно permanent errors, deadline exceeded без нового budget, non-idempotent side effect без key и overload, для которого server просит не повторять. Иногда fail fast/load shedding безопаснее.
 
-## Example
+## Пример
 
 ```text
 deadline = now + 2s
@@ -48,3 +51,26 @@ for attempt in 1..3:
 ```
 
 Логируйте final outcome один раз, attempts — как structured fields/metrics, чтобы не создавать log storm.
+
+## Разобранный пример
+
+Бюджет запроса 800 ms: оставляем 50 ms на ответ, первая попытка максимум 300 ms, ожидание до 100 ms, второй вызов не больше остатка. Это пример, а не рекомендованный timeout для всех сервисов. Retry выполняется в одном слое: три попытки в API, SDK и proxy могут дать 27 downstream вызовов.
+
+Если БД вернула serialization failure, повторяем всю отменённую транзакцию с новым снимком. Если commit (фиксация результата, который считается подтверждённым) ответил сетевым timeout, результат может быть уже сохранён: повтор после произвольной ошибки без business key опасен. Не считаем каждую 500 безопасной для повторения записи; API должен документировать поведение и стабильный key.
+
+## Источник механизма
+
+[Google SRE: retry amplification](https://sre.google/sre-book/addressing-cascading-failures/). Числа и topology в примерах — учебные допущения, не параметры этой системы.
+
+## Проверь себя
+
+1. Означает ли timeout отсутствие эффекта?
+2. Почему retry должен иметь одного владельца?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Нет, ответ мог потеряться после commit.
+2. Чтобы вложенные уровни не умножали нагрузку.
+
+</details>

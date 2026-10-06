@@ -7,13 +7,15 @@ tags:
 level:
   - middle
   - senior
-updated: 2026-10-01
+updated: 2026-10-06
 created: 2024-07-30
 ---
 
 # Slice в Go
 
-Slice описывает последовательный segment underlying array. Копирование slice копирует descriptor, а не элементы, поэтому копии обычно разделяют данные.
+Slice — окно в массив: начало, длина и доступная ёмкость. Два окна могут смотреть на одни элементы; это главная причина неожиданного изменения данных.
+
+Slice описывает последовательный segment underlying (базовый) array. Копирование slice копирует descriptor (небольшое значение с описанием общих данных), а не элементы, поэтому копии обычно разделяют данные.
 
 ## `len`, `cap` и создание
 
@@ -25,7 +27,7 @@ values := make([]int, 3, 8) // len=3, cap=8; элементы равны zero va
 
 `len` — доступная длина; `cap` — сколько элементов можно охватить reslicing от начала slice до конца underlying array. `make([]T, n)` создаёт n элементов, а не только резервирует capacity. Для пустого, но заранее ёмкого результата используйте `make([]T, 0, n)`.
 
-Nil и empty slice одинаково работают с `len`, `cap`, `range` и `append`, но могут различаться в API/serialization (`encoding/json` обычно кодирует nil как `null`, empty как `[]`). Зафиксируйте контракт boundary явно.
+Nil и empty slice одинаково работают с `len`, `cap`, `range` и `append`, но могут различаться в API/serialization (`encoding/json` обычно кодирует nil как `null`, empty как `[]`). Зафиксируйте контракт boundary (граница ответственности между слоями) явно.
 
 ## Reslicing и full slice expression
 
@@ -83,7 +85,7 @@ func addFooter(payload []byte) []byte {
 }
 ```
 
-Функция может изменить array caller или вернуть независимый array — зависит от capacity. Если ownership должен быть независимым, копируйте явно:
+Функция может изменить array caller или вернуть независимый array — зависит от capacity. Если ownership (ответственность за изменение данных и завершение работы) должен быть независимым, копируйте явно:
 
 ```go
 owned := append([]byte(nil), payload...)
@@ -134,17 +136,16 @@ func prefix(data []byte) []byte {
 - Slice не comparable, кроме сравнения с `nil`.
 - Конкретный layout descriptor и growth policy не являются API.
 
-## Вопросы для самопроверки
-
-1. Почему две копии slice могут видеть изменения друг друга?
-2. Что меняет третий index в `a[low:high:max]`?
-3. Почему маленький subslice способен удерживать большой объём памяти?
-4. Гарантирует ли preallocation отсутствие всех allocations?
-
 ## См. также
 
 - [Управление памятью](../runtime/memory-management.md)
 - [Data races](../concurrency/data-races.md)
+
+## Удаление ссылки и удаление элемента — разные операции
+
+Для `[]*Item` сдвиг `copy(items[i:], items[i+1:])` оставляет последнюю ссылку в массиве. Перед уменьшением длины обнулите хвост или используйте `slices.Delete`, который в современных Go очищает удалённый хвост. Иначе объект может оставаться достижимым через backing array.
+
+Даже `slices.Clone` копирует элементы поверхностно: для `[]*Item` указатели остаются общими. Если нужна независимость самих `Item`, определите отдельное копирование объектов и их вложенных ссылок.
 
 ## Источники
 
@@ -152,3 +153,16 @@ func prefix(data []byte) []byte {
 - [Go specification: Appending to and copying slices](https://go.dev/ref/spec#Appending_and_copying_slices)
 - [Go blog: Go Slices: usage and internals](https://go.dev/blog/slices-intro)
 - [`slices` package](https://pkg.go.dev/slices)
+
+## Проверь себя
+
+1. Почему cap-limit не изолирует изменения items[0]?
+2. Копирует ли slices.Clone объекты под указателями?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Ограничивает только append/reslicing; существующие элементы остаются общими.
+2. Нет, копируются значения элементов, то есть сами указатели.
+
+</details>

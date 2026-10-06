@@ -4,29 +4,31 @@ description: any, comparable, unions и underlying type terms в Go generics.
 tags:
   - go
   - generics
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Constraints и type sets
+
+Constraint описывает допустимые типы и операции общего алгоритма. Знак ~ разрешает и именованные типы с тем же базовым представлением.
 
 Constraint — interface, чей type set ограничивает допустимые type arguments.
 
 ```go
 type Integer interface {
-    ~int | ~int8 | ~int16 | ~int32 | ~int64 |
-        ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
 }
 
 func Sum[T Integer](values []T) T {
-    var total T
-    for _, value := range values {
-        total += value
-    }
-    return total
+	var total T
+	for _, value := range values {
+		total += value
+	}
+	return total
 }
 ```
 
-`~int64` означает все типы с underlying type `int64`, включая `type UserID int64`. Union `A | B` объединяет type sets. Terms в non-interface unions не должны пересекаться.
+`~int64` означает все типы с underlying (базовый) type `int64`, включая `type UserID int64`. Union `A | B` объединяет type sets. Terms в non-interface unions не должны пересекаться.
 
 ## `any` и `comparable`
 
@@ -40,7 +42,7 @@ Basic interface полностью задаётся методами и може
 
 ```go
 type Stringish interface {
-    ~string
+	~string
 }
 
 // var x Stringish // invalid: interface contains type constraints
@@ -53,8 +55,33 @@ type Stringish interface {
 - `~T` используйте, когда named types с тем же underlying type семантически допустимы.
 - Экспортируемый constraint — часть API; расширение или сужение type set может повлиять на callers.
 
+## Как constraint влияет на вызов
+
+После определения `Sum` выше внутри `main`:
+
+```go
+type UserID int64
+fmt.Println(Sum([]UserID{10, 20})) // 30
+// Sum([]float64{1.5}) // ошибка компиляции: float64 не входит в Integer
+```
+
+Нужен `fmt`. Без `~` член `int64` включал бы только сам `int64`, а не `UserID`. Разрешённые операции определяются всеми типами набора: constraint `~int | ~string` допускает `+`, но смысл будет сложением или конкатенацией. Не делайте API обобщённым, если у допустимых типов нет единого бизнес-смысла.
+
 ## Источники
 
 - [Go specification: General interfaces](https://go.dev/ref/spec#General_interfaces)
 - [Go specification: Satisfying a type constraint](https://go.dev/ref/spec#Satisfying_a_type_constraint)
 - [Go blog: An Introduction to Generics](https://go.dev/blog/intro-generics)
+
+## Проверь себя
+
+1. Что добавляет ~int по сравнению с int?
+2. Почему нельзя хранить обычную переменную Integer?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Именованные типы с underlying type int.
+2. Интерфейс с type terms предназначен для constraint, а не runtime-значения.
+
+</details>

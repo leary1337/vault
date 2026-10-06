@@ -2,10 +2,22 @@
 title: Authentication
 description: Sessions, tokens, MFA, credential lifecycle и authentication boundaries.
 tags: [security, authentication, sessions]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Authentication
+
+Аутентификация проверяет, кто обращается: пользователь, сервис или устройство. Успешная проверка личности ещё не разрешает читать любой объект. Секрет предъявителя нужно защищать на всём пути, включая logs и восстановление доступа.
+
+## Термины в этой статье
+
+- **identity** — подтверждённая личность пользователя или службы.
+- **credential** — предъявляемое доказательство личности: пароль, ключ, токен или сертификат.
+- **CSRF** — запрос с чужого сайта, который браузер отправляет с автоматически приложенными данными входа.
+- **audience** — получатель, для которого выпущен токен.
+- **scope** — заявленный объём доступа, который всё ещё требует проверки политикой сервера.
+- **XSS** — выполнение внедрённого злоумышленником скрипта в контексте доверенной страницы.
+- **replay** — повтор ранее переданного сообщения, который может снова вызвать действие.
 
 Authentication подтверждает identity через credential: пароль, session cookie, private key, passkey, client certificate или identity-provider token. Успешный login не даёт автоматического права на resource — далее нужна [authorization](authorization.md).
 
@@ -30,9 +42,48 @@ Access token короткоживущий и предназначен resource s
 - audit успешных/неуспешных событий без credential values;
 - recovery не слабее основного login.
 
+## Разбор на примере
+
+После login сервер выдаёт случайный opaque session ID: в нём не закодирован пароль. Сервер хранит связь ID с пользователем, сроками и состоянием отзыва. Идентификатор меняют после входа, чтобы заранее известная anonymous session не стала authenticated session: это защита от session fixation.
+
+Пример cookie для browser-сессии:
+
+```http
+Set-Cookie: __Host-session=<random-opaque-id>; Secure; HttpOnly; Path=/; SameSite=Lax
+```
+
+Это формат заголовка, placeholder заменяет криптографически случайный ID; cookie с префиксом `__Host-` не получает Domain. HttpOnly запрещает чтение cookie из JavaScript, но XSS всё ещё может инициировать действия от имени пользователя. SameSite снижает часть CSRF-рисков, но не заменяет проверку выбранного flow; state-changing GET недопустим.
+
+Учебный incident: украден session ID. Смена пароля без отзыва сессий не обязательно прекращает доступ. Определите, какие сессии отзываются после reset, как долго credential действует, требуется ли повторная проверка для смены телефона/выплат. MFA не спасает уже украденную активную bearer-сессию автоматически.
+
+Неверный пароль и неизвестный account должны давать согласованный внешний ответ. Rate limit сочетает account/source/global budget: лимит только по account позволяет атакующему блокировать жертву.
+
+```mermaid
+flowchart LR
+ C[Credential] --> V[Проверка личности]
+ V --> S[Сессия с expiry и отзывом]
+ S --> P[Проверка права на объект]
+ P --> A[Действие]
+```
+
 ## Источники
 
 - [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
 - [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
 - [OAuth 2.0 Bearer Token Usage, RFC 6750](https://www.rfc-editor.org/rfc/rfc6750)
+- [OAuth 2.0 Security Best Current Practice, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700)
 
+
+## Проверь себя
+
+1. Чем успешный login отличается от разрешения удалить объявление?
+2. Защищает ли HttpOnly от всех последствий XSS?
+
+<details>
+<summary>Ответы</summary>
+
+1. Login устанавливает identity, authorization проверяет право на конкретное действие и объект.
+
+2. Нет: JS не читает cookie, но может выполнять запросы и действия из контекста страницы.
+
+</details>

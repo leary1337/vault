@@ -2,10 +2,12 @@
 title: Delivery semantics
 description: At-most-once, at-least-once, Kafka EOS и end-to-end idempotency.
 tags: [messaging, kafka, reliability]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Delivery semantics
+
+Гарантия доставки описывает конкретную границу: Kafka, базу или внешний API. Запись в Kafka ровно один раз не означает, что платёжная операция тоже прошла ровно один раз.
 
 Delivery semantics описывают границу системы. Producer → broker, broker → consumer и consumer → внешняя БД могут иметь разные гарантии; слово «exactly-once» без границы почти бессодержательно.
 
@@ -40,7 +42,47 @@ Effectively-once — архитектурный результат: transport д
 
 Тестируйте crash в каждой точке между read, side effect, publish и commit; happy path не доказывает semantics. Для внешних effects продолжите с [idempotency](../../backend-patterns/idempotency.md), [Transactional Outbox](../../backend-patterns/transactional-outbox.md) и [Inbox/deduplication](../inbox-pattern.md).
 
+## Четыре точки падения
+
+| Точка crash | Side effect → offset commit | Offset commit → side effect |
+| --- | --- | --- |
+| До первого шага | Повтор записи | Повтор записи |
+| Между шагами | Повтор эффекта без dedup | Эффект потерян |
+| После обоих | Продолжение со следующей записи | Продолжение со следующей записи |
+
+Таблица предполагает успешно сохранённые commits и отсутствие отдельного reconciliation. At-least-once с inbox сохраняет запись marker и изменение одной transaction, поэтому повтор доставки не меняет итог второй раз. Если операция — increment баланса, повтор опасен; если поставить статус paid при ожидаемой версии, повтор может быть безопасен при правильной state machine.
+
+```mermaid
+flowchart LR
+    Input[Kafka input] --> Tx[Kafka transaction]
+    Tx --> Output[Kafka output]
+    Tx --> Offsets[Input offsets]
+    Tx -. вне атомарности .-> DB[PostgreSQL или HTTP]
+```
+
+EOS Kafka pipeline требует transactional producer, правильного offset commit в той же transaction и read_committed downstream. Оно не обещает отсутствие повторного исполнения кода: неуспешная попытка могла выполняться, но её Kafka outputs не станут видимы committed reader. Для внешних effects границу расширяют inbox/outbox/idempotency, а не рекламное название broker.
+
 ## Источники
 
 - [Kafka message delivery semantics](https://kafka.apache.org/43/design/design/#message-delivery-semantics)
 - [Producer idempotence configuration](https://kafka.apache.org/43/configuration/producer-configs/#producerconfigs_enable.idempotence)
+
+## Проверь себя
+
+1. **EOS исключает повторный запуск обработчика?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   Нет, оно ограничивает видимый результат в поддерживаемой границе, не число попыток исполнения.
+
+   </details>
+
+2. **Почему increment требует другой защиты, чем присвоение статуса?**
+
+   <details>
+   <summary>Ответ</summary>
+
+   Повтор прибавляет второй раз; присвоение может быть идемпотентно при проверке перехода/версии.
+
+   </details>

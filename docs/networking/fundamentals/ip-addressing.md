@@ -3,10 +3,19 @@ title: IP-адресация
 description: IPv4/IPv6 addresses, prefixes, subnets, scopes и special-purpose ranges.
 tags: [networking, ip, addressing]
 created: 2024-07-23
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # IP-адресация
+
+IP-адрес нужен для доставки в определённой сетевой области. Префикс задаёт группу адресов для маршрутизации; это не ID человека и не доказательство доверия.
+
+## Термины в этой статье
+
+- **scope** — заявленный объём доступа, который всё ещё требует проверки политикой сервера.
+- **identity** — подтверждённая личность пользователя или службы.
+- **NAT** — преобразование адресов, часто вместе с портами, при прохождении через сетевой узел.
+- **CIDR** — запись адреса с длиной сетевого префикса, например /24.
 
 IP address идентифицирует network interface/endpoint в routing scope, а prefix определяет network portion. Он не является стабильной identity пользователя или workload: NAT, DHCP, proxies, anycast и migration меняют mapping.
 
@@ -28,8 +37,30 @@ Scope/interface zone важен для link-local address (`fe80::1%eth0`). Dual
 
 NAT переводит addresses и часто ports, сохраняя state mapping. Он помог IPv4 conservation, но не является security boundary сам по себе. Outbound concurrency ограничивается ephemeral ports и NAT table; connection reuse снижает churn.
 
+## Разбор на примере
+
+Адрес `192.0.2.130/26`: `/26` оставляет 6 бит для адресов, значит блок из 64. Границы последнего октета — 0, 64, 128, 192; наш блок `192.0.2.128–191`, обычный network address `.128`, broadcast `.191`, host range `.129–190`. У `/31` на point-to-point другая семантика, формулу «минус два» нельзя применять всегда.
+
+В таблице есть `0.0.0.0/0`, `10.0.0.0/8` и `10.2.0.0/16`. Для `10.2.3.4` выбирается `/16` — самый длинный совпавший префикс, а не первая строка. Policy routing/VRF добавляют контекст к этому базовому правилу.
+
+Для dual-stack проверьте отдельно A/AAAA и путь IPv6. Private адрес — область использования, не гарантия недоступности атакующему внутри сети. IPv6 link-local требует указания interface zone при неоднозначности.
+
 ## Источники
 
 - [CIDR, RFC 4632](https://www.rfc-editor.org/rfc/rfc4632)
 - [IPv4 special-purpose registry](https://www.iana.org/assignments/iana-ipv4-special-registry/)
 - [IPv6 addressing architecture, RFC 4291](https://www.rfc-editor.org/rfc/rfc4291)
+
+## Проверь себя
+
+1. Какая подсеть у 192.0.2.130/26?
+2. Почему IP нельзя использовать как identity пользователя?
+
+<details>
+<summary>Ответы</summary>
+
+1. 192.0.2.128/26, обычный broadcast .191; адресов 64.
+
+2. NAT/proxy разделяются между людьми, адреса меняются и могут подделываться в некоторых контекстах.
+
+</details>

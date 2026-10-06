@@ -8,15 +8,17 @@ tags:
 level:
   - middle
   - senior
-updated: 2026-10-01
+updated: 2026-10-06
 created: 2024-07-30
 ---
 
 # Map в Go
 
+Map находит значение по ключу, как словарь по слову. Отсутствие ключа и сохранённый ноль различает второй результат чтения — ok.
+
 ## Семантика
 
-`map[K]V` — неупорядоченная коллекция key/value. Key type должен быть comparable. Map value ведёт себя как reference-like descriptor: assignment или передача в функцию не копирует все entries.
+`map[K]V` — неупорядоченная коллекция key/value. Key type должен быть comparable. Map value ведёт себя как reference-like descriptor (небольшое значение с описанием общих данных): assignment или передача в функцию не копирует все entries.
 
 ## Создание
 
@@ -135,13 +137,31 @@ Lookup начинает с group, выбранной по hash, и следуе�
 - Попытка изменить поле struct прямо через `m[key].Field`.
 - Перенос старой `hmap`-модели на current runtime.
 
-## Вопросы для самопроверки
+## Полезный пример: присутствие и копия значения
 
-1. Зачем нужен comma-ok при zero value?
-2. Почему map element не addressable?
-3. Что проверяет H2 metadata до сравнения key?
-4. Почему deleted slot не всегда завершает lookup?
-5. Какие части страницы являются specification, а какие implementation detail?
+```go
+type Item struct{ Count int }
+m := map[string]Item{"a": {Count: 0}}
+v, ok := m["a"]
+fmt.Println(v.Count, ok) // 0 true
+v.Count++
+fmt.Println(m["a"].Count) // 0
+m["a"] = v
+fmt.Println(m["a"].Count) // 1
+```
+
+Декларацию `Item` и остальные строки можно разместить внутри `main`; нужен `fmt`. Для `map[string]*Item` чтение копирует указатель, поэтому изменение поля было бы общим. Это влияет и на конкурентный доступ: безопасная публикация map ещё не делает изменяемые значения потокобезопасными.
+
+```mermaid
+flowchart LR
+    K["ключ"] --> H["hash"]
+    H --> D["выбор table/group"]
+    D --> F["H2: быстрый фильтр slots"]
+    F --> C["полное сравнение ключа"]
+    C --> R["значение или следующий probe"]
+```
+
+Схема Swiss Tables упрощена; язык гарантирует результат операций, а не эти внутренние шаги.
 
 ## Источники
 
@@ -149,3 +169,16 @@ Lookup начинает с group, выбранной по hash, и следуе�
 - [Go blog: Faster Go maps with Swiss Tables](https://go.dev/blog/swisstable)
 - [Go 1.24 Release Notes: map implementation](https://go.dev/doc/go1.24#runtime)
 - [Go 1.27.1 map source](https://github.com/golang/go/blob/go1.27.1/src/internal/runtime/maps/map.go)
+
+## Проверь себя
+
+1. Почему m[key].Count++ нельзя для значения struct?
+2. Делает ли sync.Map объект под сохранённым указателем безопасным?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Элемент map не адресуем; прочитайте копию, измените её и запишите обратно.
+2. Нет, она синхронизирует собственные операции, но не произвольные изменения полей объекта.
+
+</details>

@@ -2,20 +2,22 @@
 title: Alerting
 description: Actionable alerts, SLO burn rate, routing, deduplication и runbooks.
 tags: [observability, alerting, sre]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Alerting
+
+Alert — сигнал человеку выполнить конкретное действие; график высокой CPU сам по себе не задаёт такое действие.
 
 Alert требует человеческого действия. Если получатель не может назвать impact, срочность и следующий диагностический шаг, это dashboard signal или ticket, а не page.
 
 ## На что alert-ить
 
-- быстрый или устойчивый расход SLO error budget;
+- быстрый или устойчивый расход SLO (цель качества сервиса за заданное окно) error budget;
 - непосредственный риск data loss/security incident;
-- saturation, которая скоро нарушит пользовательский контракт;
+- saturation (насыщение ресурса и образование очереди), которая скоро нарушит пользовательский контракт;
 - отказ обязательного synthetic/end-to-end journey;
-- отсутствие telemetry только когда оно скрывает критичное состояние.
+- отсутствие telemetry (диагностические данные: метрики, логи и traces) только когда оно скрывает критичное состояние.
 
 CPU 80%, один pod restart или единичный log error редко достаточны сами по себе. Симптомный alert должен переживать смену внутренней архитектуры; cause metrics помогают diagnosis.
 
@@ -32,7 +34,7 @@ CPU 80%, один pod restart или единичный log error редко д�
 - service/SLI, severity и affected scope;
 - owner и routing/escalation;
 - краткое объяснение условия и dashboard/trace links;
-- runbook с безопасными mitigations и rollback;
+- runbook с безопасными mitigations и rollback (отмена локальной транзакции или возврат старой версии);
 - deduplication/grouping key;
 - тест правила и способ временно silencing при контролируемой работе.
 
@@ -46,3 +48,28 @@ Page — немедленное действие; ticket — действие в
 - [Prometheus alerting rules](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/)
 - [Alertmanager concepts](https://prometheus.io/docs/alerting/latest/alertmanager/)
 
+## Разбор с числами
+
+Для учебного SLO 99,9% bad ratio 1,44% даёт burn=14,4. Час этого расхода тратит около 2% 30-дневного бюджета (`14.4×1/720`). Проверяем одновременно час и последние 5 минут: длинное окно подтверждает масштаб, короткое — что проблема продолжается. Эти пороги — стартовая модель Google SRE, не SLA вашей команды.
+
+```promql
+# Предполагаются recording rules bad_ratio за соответствующие окна.
+(service:bad_ratio:1h / 0.001 > 14.4)
+and
+(service:bad_ratio:5m / 0.001 > 14.4)
+```
+
+Labels обеих series должны совпадать по service/SLI; numerator/denominator определены в одном месте. Для малого трафика добавляем критерий достаточного количества событий или synthetic probe; одна ошибка из одного запроса даёт 100%, но не говорит о массовом отказе. Проверяем пропажу telemetry отдельно: пустая series не означает отсутствие ошибок.
+
+## Проверь себя
+
+1. Почему нужны два окна?
+2. Почему missing series не успех?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Чтобы проверить масштаб и продолжающийся расход бюджета.
+2. Метрики могут не поступать, наблюдение отсутствует.
+
+</details>

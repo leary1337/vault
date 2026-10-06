@@ -1,10 +1,12 @@
 # Table of contents
 
 * [Backend Knowledge Base](README.md)
+* [Устные занятия по базе знаний](voice-study.md)
 
 ## Go
 
 * [Go](go/README.md)
+  * [Пакеты, модули и инструменты Go](go/tooling.md)
   * [Язык](go/language/README.md)
     * [Основы](go/language/basics.md)
     * [Strings, bytes и runes](go/language/strings-bytes-runes.md)
@@ -235,7 +237,10 @@
   * [Graphs](algorithms/graphs.md)
   * [Sorting](algorithms/sorting.md)
   * [Greedy](algorithms/greedy.md)
+  * [Динамическое программирование](algorithms/dynamic-programming.md)
+  * [Backtracking](algorithms/backtracking.md)
   * [Go examples](algorithms/go-examples.md)
+  * [Запускаемые примеры Go](algorithms/examples/README.md)
 * [Linux](linux/README.md)
   * [Processes и threads](linux/processes-and-threads.md)
   * [System calls](linux/system-calls.md)

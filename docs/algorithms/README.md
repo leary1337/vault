@@ -2,7 +2,7 @@
 title: Algorithms
 description: Паттерны решения задач и проверенные Go templates.
 tags: [algorithms, interviews]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Algorithms
@@ -29,3 +29,7 @@ updated: 2026-09-10
 - [Stack](stack.md)
 - [Trees](trees.md)
 - [Two pointers](two-pointers.md)
+
+- [Динамическое программирование](dynamic-programming.md)
+- [Перебор с возвратом](backtracking.md)
+- [Исполняемые примеры](examples/README.md)

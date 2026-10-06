@@ -2,7 +2,7 @@
 title: Apache Kafka
 description: Архитектура, delivery semantics и эксплуатация Apache Kafka.
 tags: [messaging, kafka]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Apache Kafka
@@ -16,7 +16,7 @@ updated: 2026-09-10
 - idempotent producer устраняет определённый класс retry duplicates, но не делает обработчик exactly-once;
 - offset commit отмечает позицию, а не факт внешнего side effect.
 
-Старая монолитная заметка удалена после тематического rewrite; при необходимости она восстановима из Git history и не является вторым source of truth.
+Для новичка: broker — сервер данных; partition — упорядоченный журнал одного участка topic; offset — позиция записи; ISR — текущие синхронизированные replicas; controller — процесс управления метаданными.
 
 
 ## Темы

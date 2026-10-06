@@ -7,17 +7,19 @@ tags:
 level:
   - middle
   - senior
-updated: 2026-09-10
+updated: 2026-10-06
 created: 2024-07-30
 ---
 
 # Интерфейсы в Go
 
+Интерфейс описывает, что объект умеет делать. Для вызова через интерфейс достаточно нужных методов; отдельное объявление implements в Go не требуется.
+
 Interface type задаёт type set. Обычный runtime interface перечисляет методы; тип удовлетворяет ему неявно, если его method set содержит эти методы.
 
 ```go
 type Reader interface {
-    Read([]byte) (int, error)
+	Read([]byte) (int, error)
 }
 
 type Buffer struct{}
@@ -39,9 +41,9 @@ var _ Reader = (*Buffer)(nil) // compile-time assertion
 У interface variable есть static interface type. В runtime она либо nil, либо содержит пару dynamic type + dynamic value.
 
 ```go
-var r Reader          // nil interface: нет dynamic type и value
+var r Reader // nil interface: нет dynamic type и value
 var b *Buffer = nil
-r = b                 // dynamic type *Buffer, dynamic value nil
+r = b // dynamic type *Buffer, dynamic value nil
 
 fmt.Println(r == nil) // false
 ```
@@ -59,11 +61,11 @@ Typed nil часто появляется при возврате `*CustomError`
 ```go
 switch v := x.(type) {
 case string:
-    fmt.Println(len(v))
+	fmt.Println(len(v))
 case fmt.Stringer:
-    fmt.Println(v.String())
+	fmt.Println(v.String())
 default:
-    fmt.Println("unsupported")
+	fmt.Println("unsupported")
 }
 ```
 
@@ -75,8 +77,8 @@ Embedding interface объединяет требования:
 
 ```go
 type ReadWriter interface {
-    io.Reader
-    io.Writer
+	io.Reader
+	io.Writer
 }
 ```
 
@@ -90,12 +92,12 @@ Non-basic interfaces с type terms (`~int`, unions) предназначены �
 
 - объявляйте маленький interface рядом с consumer;
 - не создавайте interface «на будущее» для каждого struct;
-- возвращайте concrete type, если abstraction boundary не нужна;
+- возвращайте concrete type, если abstraction boundary (граница ответственности между слоями) не нужна;
 - не принимайте `any`, когда допустимые формы данных можно выразить типом.
 
 ## Реализация и производительность
 
-Точное представление interface и dispatch — implementation detail. Interface call может мешать inlining или приводить к escape, но не обязан создавать heap allocation. Решение принимают compiler и контекст вызова; проверяйте `-gcflags=-m`, benchmarks и profiles.
+Точное представление interface и dispatch (выбор и вызов реализации метода) — implementation detail. Interface call может мешать inlining или приводить к escape (выход срока жизни объекта за пределы локального stack (стек вызовов goroutine) frame), но не обязан создавать heap (куча, область хранения объектов с управляемым временем жизни) allocation (выделение памяти). Решение принимают compiler и контекст вызова; проверяйте `-gcflags=-m`, benchmarks и profiles.
 
 ## Типичные ошибки
 
@@ -105,12 +107,18 @@ Non-basic interfaces с type terms (`~int`, unions) предназначены �
 - Сравнение interface values с non-comparable dynamic type.
 - «Interface pollution»: abstraction объявлена producer-слоем и содержит лишние методы.
 
-## Вопросы для самопроверки
+## Почему nil внутри интерфейса не равен nil
 
-1. Почему `var e error = (*MyError)(nil)` не равна `nil`?
-2. Какие method sets у `T` и `*T`?
-3. Чем assertion к concrete type отличается от assertion к interface?
-4. Когда generic function лучше interface parameter?
+```mermaid
+flowchart LR
+    A["var e error"] --> N["нет динамического типа: e == nil"]
+    B["e = (*MyError)(nil)"] --> T["тип: *MyError"]
+    B --> V["значение: nil"]
+    T --> R["тип присутствует: e != nil"]
+    V --> R
+```
+
+Это схема семантики, а не описание расположения машинных слов. Вызов метода через такой интерфейс допустим, но метод с nil-получателем должен сам уметь его обработать; обращение к полю nil-указателя паникует.
 
 ## Источники
 
@@ -118,3 +126,16 @@ Non-basic interfaces с type terms (`~int`, unions) предназначены �
 - [Go specification: Method sets](https://go.dev/ref/spec#Method_sets)
 - [Go specification: Type assertions](https://go.dev/ref/spec#Type_assertions)
 - [Go Wiki: CodeReviewComments — Interfaces](https://go.dev/wiki/CodeReviewComments#interfaces)
+
+## Проверь себя
+
+1. Что отличает nil interface от typed nil?
+2. Почему сравнение any со slice может паниковать?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. У первого нет динамического типа; у второго есть тип и nil-значение.
+2. Динамический тип []T не поддерживает сравнение; интерфейс не добавляет эту операцию.
+
+</details>

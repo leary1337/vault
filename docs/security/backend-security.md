@@ -2,10 +2,21 @@
 title: Backend security controls
 description: CORS, CSRF, SSRF, injection, path traversal и abuse/resource controls.
 tags: [security, owasp, backend]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Backend security controls
+
+Безопасный backend ограничивает доверие к входу и полномочия каждого действия. Проверка формы JSON полезна, но защиту от injection, SSRF и доступа к чужим объектам обеспечивают отдельные механизмы.
+
+## Термины в этой статье
+
+- **SSRF** — использование сервера для отправки запроса по адресу, контролируемому атакующим.
+- **CSRF** — запрос с чужого сайта, который браузер отправляет с автоматически приложенными данными входа.
+- **XSS** — выполнение внедрённого злоумышленником скрипта в контексте доверенной страницы.
+- **identity** — подтверждённая личность пользователя или службы.
+- **endpoint** — конкретный адрес службы или сторона соединения.
+- **namespace** — изолированная область системных ресурсов, например собственная таблица сетевых интерфейсов.
 
 Input validation уточняет business contract, но основная защита часто должна быть structural: parameterized query вместо escaping SQL, argument API вместо shell, allowlisted destination вместо blacklist URL.
 
@@ -37,6 +48,16 @@ Upload получает random server filename, allowlisted type/size, content v
 
 Ошибки наружу имеют стабильный code без stack/SQL/internal path; внутри — correlation и audit без secrets. Failures validation, parsing и cleanup тестируются fuzz/property/integration tests.
 
+## Разбор на примере
+
+Функция «загрузить фото по URL» делает сервис сетевым клиентом от имени пользователя. Одной проверки hostname недостаточно: redirect может вести на внутренний адрес, DNS может вернуть разные адреса при проверке и подключении. Предпочтительны allowlist разрешённых destinations, контролируемый resolver/dialer, проверка фактического endpoint и ограничение/отключение redirects. Учитывайте IPv6, mapped IPv4, private/link-local/metadata endpoints; blacklist только `127.0.0.1` не закрывает SSRF. Egress policy даёт дополнительный слой.
+
+Для SQL передавайте значения parameters, а выбираемые пользователем имена колонок/ORDER BY — через конечный allowlist. Placeholder не подставляет безопасно SQL identifier. Для команды ОС используйте argument API без shell; даже так отдельно проверяйте опасные flags конкретной утилиты.
+
+CORS управляет чтением cross-origin ответа браузером, а не доступом к API со всех клиентов. CSRF использует автоматические browser credentials; защищают подходящая cookie policy, проверка origin и token по выбранной модели. `Access-Control-Allow-Origin: *` не аутентификация.
+
+Upload ограничивается по bytes до read/allocation, типам и parsing, storage namespace и правам download. Content-Type от клиента не доказывает формат. Archive extraction требует защиты от path traversal и expansion bombs, а повторные expensive операции — rate/concurrency limits.
+
 ## Источники
 
 - [OWASP SSRF Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)
@@ -46,3 +67,17 @@ Upload получает random server filename, allowlisted type/size, content v
 - [OWASP CSRF Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 - [Fetch Standard: CORS protocol](https://fetch.spec.whatwg.org/#http-cors-protocol)
 
+
+## Проверь себя
+
+1. Защищает ли CORS от curl-запроса атакующего?
+2. Почему проверка URL до DNS/redirect недостаточна для SSRF?
+
+<details>
+<summary>Ответы</summary>
+
+1. Нет: это browser policy доступа к ответу, не server authorization.
+
+2. Фактическое соединение может получить другой endpoint; каждый переход и разрешение адресов нужно контролировать.
+
+</details>

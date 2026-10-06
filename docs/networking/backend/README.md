@@ -2,10 +2,12 @@
 title: Networking для backend
 description: Connection lifecycle, DNS/TLS, HTTP multiplexing, proxies и production-диагностика.
 tags: [networking, backend, production]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Networking для backend
+
+Запрос проходит несколько этапов: разрешение имени, установка соединения, защищённый обмен и ожидание ответа приложения. Этот раздел помогает измерить время каждого этапа, повторно использовать соединения и отличать сетевую ошибку от задержки сервиса.
 
 Этот подраздел связывает protocol mechanics с latency, resource limits и partial failures приложения.
 

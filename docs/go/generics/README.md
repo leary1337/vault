@@ -7,14 +7,12 @@ tags:
 level:
   - middle
   - senior
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Generics в Go
 
-Generics позволяют описать алгоритм или структуру данных для набора типов, сохранив compile-time type checking.
-
-Version boundary: generic aliases стабильны с Go 1.24; generic methods — с Go 1.27. Interface methods по-прежнему не могут объявлять собственные type parameters.
+Generics — общий код, проверяемый компилятором для допустимых типов. Constraint определяет операции, которые разрешены всему набору. Параметризованные функции/типы доступны с Go 1.18, generic aliases — с Go 1.24, методы со своими параметрами типов — с Go 1.27; интерфейсные методы своих параметров не имеют.
 
 ## Темы
 

@@ -4,10 +4,12 @@ description: Deadlines, monotonic time, ticker lifecycle и clock abstraction.
 tags:
   - go
   - time
-updated: 2026-10-01
+updated: 2026-10-06
 ---
 
 # Time и timers
+
+Часы календаря могут переводиться, а измерение прошедшего времени должно оставаться устойчивым. Go сохраняет монотонную компоненту для локальных измерений.
 
 `time.Time` может содержать wall clock и monotonic reading. Duration arithmetic/comparison между values, полученными из `time.Now`, использует monotonic component, защищая elapsed measurement от wall-clock adjustments. Serialization теряет monotonic component.
 
@@ -23,12 +25,34 @@ updated: 2026-10-01
 
 Для request timeouts обычно удобен context; вызывайте возвращённый `CancelFunc`, когда операция закончена.
 
-В тестах time-dependent logic принимайте clock/timer boundary или используйте `testing/synctest` (стабильный API с Go 1.25, эксперимент в Go 1.24). Произвольные sleeps вместо synchronization делают tests медленными и flaky.
+В тестах time-dependent logic принимайте clock/timer boundary (граница ответственности между слоями) или используйте `testing/synctest` (стабильный API с Go 1.25, эксперимент в Go 1.24). Произвольные sleeps вместо synchronization делают tests медленными и flaky.
 
 ## См. также
 
 - [Context](../concurrency/context.md)
 - [Goroutine leaks](../concurrency/goroutine-leaks.md)
+
+## Время, равенство и остановка ticker
+
+```go
+started := time.Now()
+elapsed := time.Since(started) // локальное измерение monotonic clock
+_ = elapsed
+
+for {
+	select {
+	case <-ticker.C:
+		// периодическая работа
+	case <-ctx.Done():
+		ticker.Stop()
+		return
+	}
+}
+```
+
+Это фрагмент функции с заранее созданными `ticker` и `ctx`. `Ticker` может пропускать ticks, если получатель медленный: это сигнал времени, а не гарантированная очередь задач. `AfterFunc.Stop` не ждёт уже начавшийся callback; если нужно дождаться, добавьте отдельную синхронизацию.
+
+Для смысла «один момент времени» используйте `Time.Equal`, а не `==`: raw comparison учитывает location и монотонные данные. Для map key заранее нормализуйте время, например `t.UTC().Round(0)`, если именно такая точность и UTC соответствуют контракту.
 
 ## Источники
 
@@ -36,3 +60,16 @@ updated: 2026-10-01
 - [`testing/synctest`](https://pkg.go.dev/testing/synctest)
 - [Go 1.23 timer channel changes](https://go.dev/wiki/Go123Timer)
 - [Go 1.27: removal of asynctimerchan](https://go.dev/doc/go1.27#runtime)
+
+## Проверь себя
+
+1. Закроет ли ticker.Stop канал C?
+2. Почему time.Time == может отличаться от Equal?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Нет, цикл range не завершится; нужна отдельная отмена.
+2. == сравнивает всё представление, Equal — момент с правилами monotonic/wall time.
+
+</details>

@@ -7,18 +7,20 @@ tags:
   - unicode
 level:
   - middle
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Strings, bytes и runes
 
+Строка хранит байты. UTF-8 кодирует один код Unicode несколькими байтами; видимый пользователю символ может состоять из нескольких кодов.
+
 ## Что гарантировано
 
-`string` — immutable sequence of bytes. Строка может содержать произвольные байты, включая невалидный UTF-8. Индексация возвращает byte, `len` — число байтов.
+`string` — immutable (неизменяемый после создания) sequence of bytes. Строка может содержать произвольные байты, включая невалидный UTF-8. Индексация возвращает byte, `len` — число байтов.
 
 ```go
 s := "Привет"
-fmt.Println(len(s))    // 12 bytes in UTF-8
+fmt.Println(len(s)) // 12 bytes in UTF-8
 fmt.Printf("%x\n", s[0])
 
 invalid := string([]byte{0xff, 0xfe})
@@ -33,13 +35,13 @@ fmt.Println(utf8.ValidString(invalid)) // false
 
 ```go
 for byteOffset, r := range "Go界" {
-    fmt.Printf("%d: %U\n", byteOffset, r)
+	fmt.Printf("%d: %U\n", byteOffset, r)
 }
 ```
 
 Для количества decoded runes используйте `utf8.RuneCountInString`, но сначала решите, что нужно продукту: bytes, code points или grapheme clusters.
 
-## Conversions и allocations
+## Conversions и allocations (выделения памяти)
 
 `[]byte(s)` создаёт изменяемую байтовую копию, `string(b)` — immutable string value. Спецификация задаёт результат conversion, но не обещает конкретное число allocations: compiler может оптимизировать временные conversions, если observable semantics сохраняется. Не используйте unsafe zero-copy conversion без измеримой причины и строгого контроля lifetime/immutability.
 
@@ -60,17 +62,32 @@ text := string(payload)
 
 ## Production-нюансы
 
-Валидируйте UTF-8 на trust boundary, если downstream требует текст. Для лимита размера сначала ограничивайте bytes до allocation/read, затем отдельно применяйте продуктовые ограничения по code points или grapheme clusters. Не логируйте неочищенные control characters из внешнего ввода.
+Валидируйте UTF-8 на trust boundary (граница ответственности между слоями), если downstream требует текст. Для лимита размера сначала ограничивайте bytes до allocation/read, затем отдельно применяйте продуктовые ограничения по code points или grapheme clusters. Не логируйте неочищенные control characters из внешнего ввода.
 
-## Вопросы для самопроверки
+## Одинаково выглядит, по-разному хранится
 
-1. Что возвращает `s[i]`?
-2. Почему `len("界")` не равен одному?
-3. Что делает `range` при invalid UTF-8?
-4. Когда conversion между string и `[]byte` может быть заметной по памяти?
+```go
+fmt.Println(len("é"), len("é")) // 2 3
+fmt.Println("é" == "é")         // false
+```
+
+Второй текст состоит из `e` и комбинируемого ударения. Для поиска имён нужно заранее выбрать правила Unicode normalization и регистронезависимого сопоставления. Для байтового протокола эта нормализация, напротив, может повредить данные. Обрезать текст по byte index можно только на проверенной границе UTF-8.
 
 ## Источники
 
 - [Go specification: String types](https://go.dev/ref/spec#String_types)
 - [Go blog: Strings, bytes, runes and characters](https://go.dev/blog/strings)
 - [`unicode/utf8`](https://pkg.go.dev/unicode/utf8)
+
+## Проверь себя
+
+1. Что означает индекс при range по строке?
+2. Достаточно ли []rune для подсчёта видимых символов?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Смещение в байтах, а не порядковый номер символа.
+2. Нет: пользовательский символ может включать несколько runes.
+
+</details>

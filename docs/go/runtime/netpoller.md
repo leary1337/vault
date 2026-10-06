@@ -5,14 +5,16 @@ tags:
   - go
   - runtime
   - networking
-updated: 2026-10-01
+updated: 2026-10-06
 ---
 
 # Netpoller
 
+При ожидании сети goroutine обычно засыпает, освобождая ресурс исполнения. ОС сообщает runtime, когда операция может продолжиться.
+
 > Это описание standard Go runtime 1.27, а не гарантия language specification.
 
-Runtime связывает сетевые операции `net` с механизмом ожидания OS. На Linux используются non-blocking sockets и epoll, на BSD/macOS — kqueue, на Windows — overlapped I/O и IOCP. Поэтому универсально описывать все платформы только через readiness неправильно.
+Runtime связывает сетевые операции `net` с механизмом ожидания OS. На Linux используются non-blocking sockets и epoll, на BSD/macOS — kqueue, на Windows — overlapped I/O и IOCP. Поэтому универсально описывать все платформы только через readiness (готовность принимать новую работу) неправильно.
 
 Если операция пока не может продолжиться, goroutine park. Событие poller или истечение deadline позволяет ей снова стать runnable; это не гарантия немедленного выполнения и не признак получения целого application message.
 
@@ -23,11 +25,33 @@ Backend consequence: тысячи mostly-idle connections не требуют т
 - Regular file I/O на многих systems не имеет такой же readiness semantics и может блокировать thread.
 - DNS path зависит от resolver mode и platform; cgo resolver может использовать threads.
 - cgo/foreign calls не становятся автоматически netpoller-aware.
-- Readiness не означает, что весь application message уже доступен; protocol framing остаётся обязанностью caller.
+- Readiness не означает, что весь application message уже доступен; protocol framing (правило разделения потока байтов на сообщения) остаётся обязанностью caller.
 
 ## Deadlines
 
 Network deadlines устанавливают абсолютное время для будущих и текущих I/O operations. После timeout deadline нужно обновить, если connection продолжает использоваться. Context сам по себе не отменяет произвольный `net.Conn` read; higher-level API должен связать context с deadline/close.
+
+## Deadline действует на будущие операции тоже
+
+Фрагмент для существующего `net.Conn`, нужны `time`, `io`:
+
+```go
+if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	return err
+}
+buf := make([]byte, 4)
+_, err := io.ReadFull(conn, buf)
+if err != nil {
+	return err
+}
+if err := conn.SetReadDeadline(time.Time{}); err != nil {
+	return err
+}
+```
+
+Это тело функции, возвращающей error. `ReadFull` получает ровно четыре байта или ошибку: одна readiness notification не обещает целое сообщение. Zero time снимает deadline. Если переиспользовать соединение с истёкшим deadline, следующий read сразу получит timeout.
+
+Не устанавливайте конкурирующие deadlines из независимых goroutines без протокола владения connection. TCP — поток байтов: формат приложения должен задавать длину, разделитель или иной framing.
 
 ## Источники
 
@@ -36,3 +60,16 @@ Network deadlines устанавливают абсолютное время д�
 - [Linux epoll backend, Go 1.27.1](https://github.com/golang/go/blob/go1.27.1/src/runtime/netpoll_epoll.go)
 - [Windows IOCP backend, Go 1.27.1](https://github.com/golang/go/blob/go1.27.1/src/runtime/netpoll_windows.go)
 - [Go diagnostics: execution tracer](https://go.dev/doc/diagnostics#execution-tracer)
+
+## Проверь себя
+
+1. Почему один Read не гарантирует весь request?
+2. Отменит ли context.Background произвольный conn.Read?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Сеть — поток байтов, readiness и read могут дать только часть данных.
+2. Нет. Нужны deadline/close или API, которое связывает context с I/O.
+
+</details>

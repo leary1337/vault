@@ -5,12 +5,14 @@ tags:
   - go
   - grpc
   - protobuf
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Protobuf contracts
 
-Field number — wire identity. После публикации его нельзя менять или переиспользовать для другого смысла.
+Protobuf описывает поля сообщения и их устойчивые числовые номера. По этим номерам разные версии программы понимают один бинарный поток.
+
+Field number — wire (передаваемый по сети) identity. После публикации его нельзя менять или переиспользовать для другого смысла.
 
 ```proto
 message User {
@@ -29,8 +31,36 @@ Binary protobuf compatibility не равна ProtoJSON compatibility. Меня�
 
 Generated Go code не редактируется вручную. Фиксируйте версии `protoc`/plugins и проверяйте breaking changes в CI.
 
+## Ноль и отсутствие в API обновления
+
+```proto
+syntax = "proto3";
+
+message UpdateAd {
+  string id = 1;
+  optional int64 price_minor = 2;
+}
+```
+
+`price_minor` хранит цену в минимальных денежных единицах. Если поле отсутствует, цену не меняем; если передано 0, делаем объявление бесплатным. Обычный scalar без presence не позволяет надёжно различить эти намерения. В сгенерированном Go API используйте предусмотренный механизм presence: открытый и opaque API могут выглядеть по-разному.
+
+Изменение `int32` на `int64` может быть wire-compatible по кодированию, но старый reader способен потерять большие значения. Совместимость означает также бизнес-смысл, диапазон, JSON и порядок развёртывания. Удалённые номера reserve; неизвестные поля не должны исчезнуть из посредника, который обязан передавать исходное сообщение дальше.
+
 ## Источники
 
 - [Proto3 language guide](https://protobuf.dev/programming-guides/proto3/)
 - [Proto best practices](https://protobuf.dev/best-practices/dos-donts/)
 - [ProtoJSON format](https://protobuf.dev/programming-guides/json/)
+
+## Проверь себя
+
+1. Почему нельзя переиспользовать удалённый номер?
+2. Когда нужен optional scalar?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Старые данные/клиенты прочтут новое поле как прежний смысл.
+2. Когда отсутствие отличается от явно переданного zero value, например PATCH цены.
+
+</details>

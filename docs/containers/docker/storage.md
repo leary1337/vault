@@ -2,10 +2,12 @@
 title: Docker storage
 description: Writable layer, volumes, bind mounts и tmpfs.
 tags: [containers, docker, storage]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Docker storage
+
+Writable layer относится к одному container. Volume переживает его замену, bind mount показывает путь host, tmpfs хранит временные данные в памяти.
 
 Container writable layer исчезает при удалении container и зависит от storage driver. Не храните там единственную копию durable data.
 
@@ -29,7 +31,31 @@ Writable-layer heavy writes увеличивают copy-up/CoW overhead и compl
 
 Root filesystem `--read-only` плюс explicit writable tmpfs/volume уменьшает mutation surface и выявляет скрытые runtime writes.
 
+## Предел долговечности volume
+
+```bash
+docker volume create app-data
+docker run --mount type=volume,src=app-data,dst=/data app-image
+```
+
+Замена container с тем же volume сохраняет данные. Но отказ диска/host, ошибочное удаление или испорченная запись остаются отказами. Для БД backup должен учитывать transaction/log protocol; копия directory во время записи может быть непригодна для restore.
+
+Bind mount с `readonly` защищает от записи через этот mount, но не от чтения лишнего секрета. Выдавайте минимальный host path, не `/`. tmpfs учитывается в memory, а при swap может оказаться на диске: это не универсальная гарантия «секрет никогда не записан физически». Проверьте memory/swap policy и backup retention.
+
 ## Источники
 
 - [Docker storage overview](https://docs.docker.com/engine/storage/)
 - [Volumes](https://docs.docker.com/engine/storage/volumes/)
+
+## Проверь себя
+
+1. Чем volume отличается от backup?
+2. Почему tmpfs влияет на memory limit?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Volume сохраняет текущее состояние, включая повреждение; backup отдельная восстановимая копия.
+2. Его данные занимают память и учитываются соответствующими resource controllers.
+
+</details>

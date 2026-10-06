@@ -8,10 +8,12 @@ tags:
 level:
   - middle
   - senior
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Модель памяти Go
+
+Модель памяти задаёт, какие записи гарантированно увидит другой поток выполнения. Нужна связь через синхронизацию, а не предположение «он наверняка уже успел».
 
 Модель памяти отвечает на вопрос: когда read в одной goroutine гарантированно наблюдает write из другой. «Операция уже успела выполниться по времени» недостаточно — нужна synchronization relation.
 
@@ -66,7 +68,7 @@ fmt.Println(result) // data race; нет гарантии наблюдения
 
 ## Publication
 
-Правильная публикация immutable snapshot:
+Правильная публикация immutable (неизменяемый после создания) snapshot (снимок состояния):
 
 ```go
 type Config struct{ Timeout time.Duration }
@@ -83,15 +85,51 @@ func load() *Config     { return current.Load() }
 
 Проверка обычного pointer вне lock и повторная проверка под lock остаётся race: первая read не синхронизирована с write. Для lazy initialization используйте `sync.Once`, `sync.OnceValue` или корректный atomic publication protocol.
 
-## Вопросы для самопроверки
+## Видимость данных через закрытие канала
 
-1. Чем synchronized-before отличается от wall-clock order?
-2. Гарантирует ли завершение goroutine видимость её writes?
-3. Как close channel публикует ранее записанные данные нескольким receivers?
-4. Почему atomic pointer не делает mutable object потокобезопасным?
+Полная программа:
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	var result string
+	done := make(chan struct{})
+	go func() {
+		result = "ready"
+		close(done)
+	}()
+	<-done
+	fmt.Println(result) // ready
+}
+```
+
+```mermaid
+flowchart LR
+    W["записать result"] -->|"порядок в goroutine"| C["close(done)"]
+    C -->|"синхронизация"| R["receive закрытого done"]
+    R -->|"порядок в goroutine"| P["прочитать result"]
+```
+
+Объединённый путь — happens-before: запись гарантированно видна чтению. Дополнительная запись в `result` после close уже не защищена этой связью. Для buffered channel отправка публикует предшествующие записи получателю, но получение из буфера не означает, что отправитель завершил последующие действия.
 
 ## Источники
 
 - [The Go Memory Model](https://go.dev/ref/mem)
 - [`sync` package](https://pkg.go.dev/sync)
 - [`sync/atomic` package](https://pkg.go.dev/sync/atomic)
+
+## Проверь себя
+
+1. Почему Sleep не заменяет receive(done)?
+2. Можно ли менять snapshot после atomic.Store?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Время не создаёт отношения синхронизации; чтение и запись остаются неупорядоченными.
+2. Без отдельной синхронизации нет; Store публикует предшествующее состояние, не защищает будущие мутации.
+
+</details>

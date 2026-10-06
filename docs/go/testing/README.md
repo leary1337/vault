@@ -4,12 +4,12 @@ description: Unit, integration, HTTP/DB, race, benchmark и fuzz testing.
 tags:
   - go
   - testing
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Testing Go-сервисов
 
-Хороший набор тестов проверяет observable behavior на самом дешёвом подходящем уровне. Он не пытается заменить unit tests end-to-end тестами и не подменяет integration contract mocks.
+Тест проверяет обещанное поведение на подходящей границе. Unit проверяет небольшую логику, integration — настоящие протоколы и хранилища, race — выполненные конкурентные обращения, fuzz — свойства на новых входах. Самый дешёвый тест выбирают по ошибке, которую он должен обнаружить.
 
 ## Темы
 

@@ -3,10 +3,12 @@ title: Struct в Go
 description: Struct values, comparability, embedding, tags и layout.
 tags: [go, data-structures]
 created: 2024-07-30
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Struct в Go
+
+Struct объединяет связанные поля в одно значение. При копировании скалярные поля независимы, а ссылочные поля могут оставаться связаны с прежними данными.
 
 Struct — sequence именованных fields. Его zero value состоит из zero values полей; это позволяет проектировать types, полезные без constructor-а. Struct value копируется целиком при assignment/argument/return, хотя поля pointers, slices и maps продолжают ссылаться на общие данные.
 
@@ -14,14 +16,14 @@ Struct — sequence именованных fields. Его zero value состо�
 
 ```go
 type User struct {
-    ID   int64
-    Name string
+	ID   int64
+	Name string
 }
 
 u := User{ID: 42, Name: "Ada"}
 ```
 
-В package boundary предпочитайте keyed literals: добавление/reorder field не меняет смысл. Unkeyed literals external struct запрещает `go vet` для многих случаев и связывает caller с layout полей.
+В package boundary (граница ответственности между слоями) предпочитайте keyed literals: добавление/reorder field не меняет смысл. Unkeyed literals external struct запрещает `go vet` для многих случаев и связывает caller с layout полей.
 
 ## Comparability
 
@@ -41,11 +43,11 @@ Tag — string metadata доступная через reflection. Convention к�
 
 ```go
 type Request struct {
-    Name string `json:"name"`
+	Name string `json:"name"`
 }
 ```
 
-Unexported fields обычно недоступны encoder-у другого package. Не используйте tags как единственную security authorization policy: mass assignment/field exposure контролируются explicit DTO и mapping.
+Unexported fields обычно недоступны encoder-у другого package. Не используйте tags как единственную security authorization policy: mass assignment/field exposure контролируются explicit DTO (структура данных внешнего запроса или ответа) и mapping.
 
 ## Layout и alignment
 
@@ -53,8 +55,39 @@ Compiler вставляет padding, чтобы удовлетворить align
 
 Нельзя сериализовать raw struct memory как portable wire/storage format: padding, endianness, pointers и layout не являются стабильным межпроцессным contract. Используйте explicit encoding.
 
+## Embedding на маленьком примере
+
+```go
+type Address struct{ City string }
+type UserWithAddress struct {
+	Address
+	Name string
+}
+
+// внутри main:
+u := UserWithAddress{Address: Address{City: "Москва"}, Name: "Анна"}
+fmt.Println(u.City) // Москва: сокращённый selector u.Address.City
+```
+
+Embedding не создаёт отношение «User является Address». При объявлении собственного `City` у внешней структуры сокращённый selector начнёт указывать на другое поле, хотя `u.Address.City` останется прежним. Публичный API через embedding требует внимания к таким конфликтам.
+
+Если структура содержит `sync.Mutex`, методы должны работать через указатель: копия mutex защищает уже другой lock, а данные могут оставаться общими.
+
 ## Источники
 
 - [Go specification: struct types](https://go.dev/ref/spec#Struct_types)
 - [Go specification: comparison operators](https://go.dev/ref/spec#Comparison_operators)
 - [`unsafe` package](https://pkg.go.dev/unsafe)
+
+## Проверь себя
+
+1. Почему struct с slice нельзя использовать как map key?
+2. Что реально означает u.City при embedding?
+
+<details>
+<summary>Ориентиры для ответа</summary>
+
+1. Slice не сравним, поэтому вся структура не сравнима.
+2. Продвижение selector для вложенного поля, а не наследование.
+
+</details>
