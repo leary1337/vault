@@ -1,6 +1,6 @@
 ---
-title: Контейнеры
-description: Docker и контейнеризация backend-сервисов.
+title: "Контейнеры"
+description: "Контейнер упаковывает приложение и ограничивает его окружение."
 tags:
   - containers
 updated: 2026-10-06

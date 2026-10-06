@@ -1,28 +1,23 @@
 ---
 title: Redis
-description: Data structures, caching, durability и high availability Redis.
+description: Команды в памяти, кэш, сохранение на диск и работа копий Redis.
 tags: [databases, redis]
 updated: 2026-10-06
 ---
 
 # Redis
 
-Redis — хранилище в оперативной памяти с атомарными командами, богатыми структурами данных, expiration, persistence и replication. Раздел ориентирован на Redis Open Source 8.10.2.
+Redis хранит данные преимущественно в оперативной памяти и предоставляет команды для счётчиков, объектов, множеств и очередей. Материалы ориентированы на Redis Open Source 8.10.2.
 
-Перед выбором Redis зафиксируйте роль данных:
+Для восстанавливаемого кэша потеря ключа может быть обычным промахом. Для сессии она разлогинит пользователя. Для единственной записи оплаты потеря недопустима. Поэтому сначала определите роль данных, затем выберите сохранение на диск, репликацию и политику удаления при заполнении.
 
-- воспроизводимый cache допускает eviction и потерю;
-- session/rate-limit state требует определённых failure semantics;
-- system of record требует отдельно доказанной durability, backup и consistency модели.
-
-Быстрая команда не означает быстрый запрос любого размера: большие collections, replies, Lua/function execution и массовые operations могут блокировать обработку других клиентов. Проверяйте command complexity и ограничивайте объём работы.
-
+[Структуры данных](data-structures.md) объясняют операции, [кэш](caching.md) — загрузку и гонки, [Сохранение Redis на диск](persistence.md) — перезапуск, [репликация](replication.md), [Sentinel](sentinel.md) и [Cluster](cluster.md) — копии и отказы. Большое значение или долгий скрипт всё ещё может задержать другие команды: скорость зависит от объёма работы.
 
 ## Темы
 
-- [Expiration и eviction](expiration-and-eviction.md)
-- [Hot keys и big keys](hot-keys.md)
-- [Persistence Redis](persistence.md)
+- [Истечение срока и вытеснение ключей](expiration-and-eviction.md)
+- [Горячие и большие ключи](hot-keys.md)
+- [Сохранение Redis на диск](persistence.md)
 - [Redis Cluster](cluster.md)
 - [Redis Sentinel](sentinel.md)
 - [Кэширование с Redis](caching.md)

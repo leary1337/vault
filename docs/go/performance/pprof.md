@@ -1,6 +1,6 @@
 ---
-title: pprof
-description: Сбор и интерпретация CPU, heap, block, mutex и goroutine profiles.
+title: "pprof"
+description: "Профиль показывает, где расходуется выбранный ресурс."
 tags:
   - go
   - performance
@@ -11,30 +11,30 @@ created: 2024-07-28
 
 # pprof
 
-Profile показывает, где расходуется выбранный ресурс. CPU profile ищет выполняемую работу, heap (куча, область хранения объектов с управляемым временем жизни) — память, block/mutex — ожидание синхронизации.
+Профиль показывает, где расходуется выбранный ресурс. Сначала сформулируйте вопрос: много вычислений, растущая память или ожидание блокировки. CPU-профиль не объясняет всё время, которое запрос провёл в ожидании. Куча — область объектов с управляемым сроком жизни; профиль памяти помогает понять, какие из них выделялись или остались живыми.
 
-Profile отвечает на конкретный вопрос о resource consumption. Сначала формулируйте симптом и временное окно, затем выбирайте profile.
+## Виды профилей
 
-| Profile | Что показывает |
+| Профиль | Что показывает |
 |---|---|
-| CPU | sampled stacks во время потребления CPU |
-| heap | sampled allocations (выделения памяти), всё ещё in-use на момент snapshot (снимок состояния) |
-| allocs | исторические allocations с момента старта |
-| goroutine | stacks текущих goroutines |
-| goroutineleak | Go 1.27: доказуемо permanently blocked goroutines на поддержанных primitives |
-| mutex | contention (конкуренция за один ресурс, например lock), attributed к месту освобождения lock |
-| block | время blocking на synchronization primitives |
-| threadcreate | stacks, приведшие к созданию OS threads |
+| CPU | Выборочные стеки во время работы CPU |
+| heap | Выделенную память, ещё занятую на момент снимка |
+| allocs | Выделения с начала работы |
+| goroutine | Текущие стеки горутин |
+| goroutineleak | Go 1.27: доказуемые постоянные блокировки поддержанных механизмов |
+| mutex | Конкуренцию за блокировку, отнесённую к месту освобождения |
+| block | Время ожидания примитивов синхронизации |
+| threadcreate | Стеки, приводившие к созданию потоков ОС |
 
-Mutex/block profiling имеет overhead и требует sampling configuration. Параллельный сбор diagnostics может искажать результаты.
+Сбор mutex и block нужно включить с выбранной частотой. Диагностика расходует ресурсы; одновременные сборы могут исказить результат.
 
-## HTTP endpoint
+## Получение через HTTP
 
 ```go
 import _ "net/http/pprof"
 ```
 
-Не выставляйте `/debug/pprof/` в публичную сеть. Используйте отдельный authenticated admin listener, loopback, service mesh policy или controlled port-forward.
+Импорт `net/http/pprof` регистрирует обработчики на DefaultServeMux, но не запускает слушатель. На собственном mux нужна явная регистрация. Доступ защищайте отдельным административным слушателем, проверкой прав, loopback или контролируемым port-forward. Публично открывать `/debug/pprof/` нельзя.
 
 ```bash
 go tool pprof http://127.0.0.1:6060/debug/pprof/profile?seconds=30
@@ -42,31 +42,9 @@ go tool pprof http://127.0.0.1:6060/debug/pprof/heap
 go tool pprof -diff_base before.pb.gz after.pb.gz
 ```
 
-В interactive pprof полезны `top`, `top -cum`, `list`, `web`. Flat cost находится в самой function; cumulative включает callees.
+В интерактивном режиме `top` показывает функции, `top -cum` учитывает также вызываемые ими, `list` связывает с кодом, `web` строит граф. Сохраняйте бинарный файл и исходники той же сборки для правильных имён и строк.
 
-## Heap: in-use и allocated
-
-- `inuse_space` ищет current retention (удержание достижимых данных в памяти).
-- `alloc_space` ищет allocation (выделение памяти) churn/GC pressure.
-- `inuse_objects`/`alloc_objects` полезны для множества маленьких objects.
-
-Сохраняйте binary/source той же build версии, иначе symbolization и line mapping будут неверны.
-
-## Goroutine leak profile
-
-Go 1.27 `goroutineleak` автоматически находит subset leaks: permanently blocked operations на channels и поддержанных `sync` primitives. Он намеренно не покрывает каждую логическую leak, например object, всё ещё достижимый из global state, или зависший foreign I/O. Обычный goroutine profile и временные trends остаются нужны.
-
-## Production workflow
-
-1. Зафиксировать symptom, traffic и deploy version.
-2. Снять baseline metrics и профиль репрезентативного окна.
-3. Проверить top/cumulative stacks и сопоставить с latency/resource metrics.
-4. Изменить одну гипотезу.
-5. Сравнить profile/benchmark до и после.
-
-## Как читать top без неверного вывода
-
-Иллюстративный вывод CPU profile:
+## Чтение top
 
 ```text
 flat  flat%   cum  cum%  function
@@ -74,9 +52,15 @@ flat  flat%   cum  cum%  function
 1.2s   60%  1.2s   60%  encodePayload
 ```
 
-`handleRequest` мало работает сам, но вызывает дорогой encoder; переписывать handler ради его 75% обычно бессмысленно. Для heap один и тот же участок может иметь высокий alloc_space и низкий inuse_space: он создаёт временные объекты, а не удерживает их.
+Это иллюстративный вывод. **Flat** — работа в самой функции, **cumulative** — вместе с вызванными функциями. `handleRequest` может иметь большую cumulative-долю, потому что вызывает дорогой encoder. Исправлять оболочку ради этой цифры бессмысленно, если время тратит кодировщик.
 
-`import _ "net/http/pprof"` регистрирует handlers в DefaultServeMux; собственный admin mux требует явной регистрации. Не путайте регистрацию с запуском listener: HTTP-сервер всё равно нужно создать. Сбор block/mutex профиля включите через runtime API с осознанной частотой и выключите/снизьте после эксперимента.
+Для памяти `inuse_space` показывает удерживаемые байты, `alloc_space` — накопленные выделения. Высокий второй при стабильном первом часто означает много временных объектов, а не утечку. `inuse_objects` и `alloc_objects` помогают с многочисленными маленькими объектами.
+
+## Утечки и сравнение
+
+`goroutineleak` Go 1.27 покрывает определённые навсегда заблокированные каналы и примитивы sync. Он не видит всякую потерявшую смысл работу или внешнее ожидание. Нужны также обычные стеки и изменение во времени.
+
+Зафиксируйте версию, нагрузку и интервал. Снимите профиль, сформулируйте одну гипотезу и сравните после изменения при той же нагрузке. Частоту диагностических профилей после эксперимента уменьшите или отключите.
 
 ## Источники
 
@@ -88,12 +72,12 @@ flat  flat%   cum  cum%  function
 ## Проверь себя
 
 1. Чем flat отличается от cumulative?
-2. Что означает высокий alloc_space при стабильном inuse_space?
+2. Что означает большой `alloc_space` при стабильном `inuse_space`?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Flat — стоимость внутри функции; cumulative добавляет вызванные ею функции.
-2. Вероятен allocation churn; это не обязательно утечка памяти.
+1. Самостоятельная стоимость функции против стоимости вместе с её вызовами.
+2. Вероятны временные выделения; это не обязательно удержание памяти.
 
 </details>

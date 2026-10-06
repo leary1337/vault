@@ -1,67 +1,41 @@
 ---
-title: Kafka consumer lag
-description: Диагностика backlog age, consumer throughput, rebalances и hot partitions.
+title: "Отставание Kafka: почему обработка не успевает"
+description: "Отставание показывает, что получатель ещё не подтвердил часть журнала"
 tags: [production, kafka, messaging]
 updated: 2026-10-06
 ---
 
-# Kafka consumer lag
+# Отставание Kafka: почему обработка не успевает
 
-Lag — отставание позиции consumer (потребитель работы или контракта); пользовательскую задержку лучше также измерять возрастом необработанного события.
+Отставание показывает, что получатель ещё не подтвердил часть журнала. Важны не только количество сообщений, но и возраст самого старого необработанного события.
 
-## Симптомы
+## Как это работает
 
-Offset lag и, важнее, возраст oldest unprocessed event растут; freshness SLO (цель качества сервиса за заданное окно) нарушается. Lag count может расти при нормальном processing time из-за traffic burst.
+Сравните скорость поступления с успешным завершением обработки. Если поступает больше, очередь растёт даже у исправного получателя. Затем посмотрите каждый раздел журнала: один популярный ключ или постоянно ошибочное сообщение может остановить только одну часть.
 
-## Возможные причины
+Позиция после чтения и подтверждённая позиция отличаются. Получатель мог прочитать событие, но ещё не сохранить результат. При параллельной обработке нельзя подтвердить позицию за незавершённым предшественником, иначе после перезапуска его пропустят.
 
-Arrival rate выше processing capacity, slow dependency, poison message/retry loop, rebalance churn, crashed/stalled members, too few partitions, hot partition/key, large records/batches, broker/network throttling или incorrect offset observation.
+Добавление получателей ограничено числом полезных разделов и общей зависимостью. Если все ждут перегруженную БД, новые получатели усиливают проблему. Ошибочное сообщение можно вынести на разбор только по процедуре, сохраняющей ID, причину и правила последующего повтора.
 
-## Что измерить
+## Разобранный пример
 
-Produce/consume rate, lag по partition (раздел журнала или данных; при network partition — разрыв связи), oldest event age, process latency/outcome, poll/commit/rebalance metrics, consumer membership, dependency saturation (насыщение ресурса и образование очереди) и broker request/throttle/under-replication signals.
+Поступает 10 000 событий/с, завершается 8000: за десять минут добавится 1,2 миллиона. После ускорения до 12 000/с при прежнем входе излишек убывает на 2000/с и будет обработан примерно за десять минут.
 
-## Проверка гипотез
-
-Проверьте, растёт ли lag на всех или одной partition. Сравните arrival и successful completion rate, затем consumer health/rebalances и process spans. Найдите самый старый record metadata без вывода sensitive payload (полезное содержимое запроса или события). Отделите receive/poll от фактического business completion и commit (фиксация результата, который считается подтверждённым).
-
-## Инструменты
-
-Kafka consumer-group tooling/APIs, client metrics/logs, broker metrics, traces с messaging semantics, dependency dashboards и DLQ/retry-topic inspection.
-
-## Как уменьшить ущерб
-
-Устранить poison retry, pause необязательных producers/jobs, увеличить consumers до числа полезных partitions, ускорить/отключить bottleneck, применить controlled load shed или replay/DLQ policy. Не увеличивайте partitions поспешно: ordering/key distribution и later scale меняются.
-
-## Механизм причины
-
-Докажите, почему service rate стал ниже arrival rate или конкретная partition остановилась, включая trigger и missing bound. «Большой lag» — symptom; root cause находится в producer, consumer, dependency или broker path.
-
-## Предотвращение
-
-Alert на oldest age и growth, capacity headroom (запас ресурса сверх обычной нагрузки), bounded (с явным конечным пределом) retries/DLQ, idempotent (без второго эффекта при повторе одного намерения) processing, rebalance-safe shutdown, partition/key review и load/replay exercises. См. [Kafka consumers](../messaging/kafka/consumer.md).
-
-## Разбор с числами
-
-Учебный поток: вход 10 000/s, успешно обработано 8 000/s, lag растёт 2 000/s. Через 10 min прибавится 1,2 млн событий. После scale обработка 12 000/s при том же входе догонит за 10 min. Если 90% traffic у одной partition, дополнительные consumers других partitions не исправят её throughput (скорость успешной обработки).
-
-Иллюстративная таблица: partitions 0..7 имеют lag≈100, partition 8 lag=900 000 и самый старый record 20 min. Проверяем key skew или poison record, а не общую CPU. Если все partitions отстают и DB pool wait вырос, увеличение consumers может усилить bottleneck.
-
-Committed offset отражает подтверждённый префикс по контракту приложения; consumer position после poll не означает business completion. При параллельной обработке не подтверждаем 102, пока 101 ещё не сохранён. DLQ (очередь ошибочных событий с процедурой разбора) требует stable ID, причины, владельца и replay (повторное проигрывание сохранённых событий); перестановка сообщений может нарушить aggregate order.
-
-## Источник механизма
-
-[Kafka 4.3 design](https://kafka.apache.org/43/design/design/). Числа и topology в примерах — учебные допущения, не параметры этой системы.
+У разделов 0–7 отставание около ста, у раздела 8 — 900 тысяч и возраст двадцать минут. Ищите неравномерность ключей или постоянно ошибочное событие. При подтверждении параллельной обработки позиции 101 и 102 сначала должен быть сохранён непрерывный префикс, включая 101. Перенос в очередь ошибок может нарушить порядок, поэтому повтор имеет собственную процедуру.
 
 ## Проверь себя
 
-1. Почему больше consumers не всегда помогает?
-2. Как оценить catch-up time?
+1. Как посчитать время догоняющей обработки?
+2. Почему новые получатели иногда не помогают?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Предел partitions, hot key (ключ с непропорционально высокой нагрузкой) или внешняя зависимость остаются.
-2. Backlog (накопившаяся необработанная работа) разделить на service rate минус текущий arrival rate.
+1. Объём очереди разделить на скорость завершения минус текущую скорость поступления, если разность положительна.
+2. Остаются ограничения разделов, горячего ключа или общей зависимости.
 
 </details>
+
+## Источники
+
+- [Kafka 4.3 design](https://kafka.apache.org/43/design/design/)

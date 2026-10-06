@@ -1,56 +1,42 @@
 ---
-title: Security в System Design
-description: Threat model, identity, authorization, data и abuse controls.
+title: "Безопасность при проектировании"
+description: "Безопасность начинается с того, кому разрешено действие и где это проверяется"
 tags: [system-design, security]
 updated: 2026-10-06
 ---
 
-# Security в System Design
+# Безопасность при проектировании
 
-Безопасность проектируется по конкретным путям данных и полномочиям каждого участника.
+Безопасность начинается с того, кому разрешено действие и где это проверяется. Угадываемый ID, подписанный токен или внутренний адрес сами по себе не определяют право доступа.
 
-Security review начинается с assets, actors, trust boundaries и abuse cases. TLS rectangle без authorization/data lifecycle (кто создаёт, останавливает и освобождает ресурс) не является design.
+## Как это работает
 
-## Вопросы для проверки
+Аутентификация устанавливает, кто обращается. Авторизация проверяет, вправе ли он выполнить конкретное действие с объектом. Пользователь берётся из проверенной сессии или токена, а не из произвольного поля запроса.
 
-- Authentication: human/service identity, credential lifecycle, MFA/workload identity.
-- Authorization: deny by default, object/tenant/action checks на server, least privilege.
-- Transport/storage: TLS, encryption at rest, key rotation и ownership (владение данными или ответственность за ресурс).
-- Secrets: dedicated secret store, short-lived credentials, no logs/images/repos.
-- Input/output: size/schema validation, injection-safe APIs, SSRF allowlists, safe file handling.
-- Data: classification, minimization, retention/delete, backup and telemetry (диагностические данные: метрики, логи и traces) copies.
-- Abuse: rate/cost limits, enumeration resistance, replay/idempotency, moderation.
-- Supply chain: pinned/verifiable artifacts, dependency scanning, controlled deploy.
-- Audit: tamper-resistant security events с ограниченным доступом.
+Разделите доверенные и недоверенные границы: публичный клиент, шлюз, сервис, БД и внешний поставщик. На каждой ограничивают размер и частоту входа, проверяют параметры и используют минимальные права. Секреты не попадают в логи.
 
-Multi-tenant key/cache/index обязательно включает tenant boundary; ID угадываемого объекта не является authorization. Background jobs и admin endpoints проходят те же проверки.
+Право может измениться между проверкой и записью. Где это критично, проверку связывают с изменением атомарно. При недоступности проверки доступ не разрешают автоматически. Срок кэша прав определяет, насколько быстро реально работает отзыв.
 
-## Failure и operations
+## Разобранный пример
 
-Определите поведение при недоступности identity/policy service: fail-open редко допустим для privileged action. Rotation должна работать без synchronized restart. Incident plan включает revoke credentials, isolate component, preserve evidence и уведомление владельцев данных.
+Клиент прислал user_id=17 и ad_id=42. Сервер не считает это доказательством владения: определяет пользователя по проверенному контексту и выполняет изменение только при совпадении владельца и ожидаемой версии.
 
-Threat model пересматривают при новом data flow/provider. Используйте актуальные OWASP ASVS/API Security guidance как checklist, но привязывайте control к конкретной угрозе.
+Если сервис формирует превью внешней ссылки, возникает SSRF: атакующий пытается заставить сервер обратиться во внутреннюю сеть. Нужно проверять фактический адрес подключения, перенаправления и адреса IPv6, а не только исходную строку URL. Подписанный токен тоже требует ожидаемых issuer и audience; корректная подпись не даёт любых прав.
+
+## Проверь себя
+
+1. Чем аутентификация отличается от авторизации?
+2. Почему проверка только исходного URL недостаточна?
+
+<details>
+<summary>Ответы</summary>
+
+1. Первая устанавливает личность, вторая разрешение конкретного действия.
+2. DNS и перенаправление способны привести к другому, в том числе внутреннему адресу.
+
+</details>
 
 ## Источники
 
 - [OWASP API Security Top 10](https://owasp.org/API-Security/)
 - [NIST SP 800-207 Zero Trust Architecture](https://csrc.nist.gov/publications/detail/sp/800-207/final)
-
-## На конкретном примере
-
-Для `GET /ads/42` authentication доказывает пользователя, authorization разрешает ему этот ad и поля. Даже существующий пользователь не должен видеть чужой draft. Фоновый индексатор тоже имеет tenant scope, иначе поиск раскроет private данные в обход API.
-
-Для upload временный URL ограничен объектом, действием и сроком; файл остаётся в карантине до проверки конкретной версии. Для server-side URL preview проверяем исходный и каждый redirect IP, иначе SSRF попадёт в metadata/private network. Добавление TLS не исправит объектные права или ошибку политики.
-
-## Проверь себя
-
-1. Чем authentication отличается от authorization?
-2. Где опасен SSRF?
-
-<details>
-<summary>Ориентиры для ответа</summary>
-
-1. Кто ты и что тебе разрешено — разные проверки.
-2. В серверной загрузке адреса, включая DNS и цепочку redirects.
-
-</details>

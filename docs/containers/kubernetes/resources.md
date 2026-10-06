@@ -1,27 +1,27 @@
 ---
-title: Resources
-description: Requests, limits, CPU throttling, OOMKilled и Go runtime.
+title: "Ресурсы Kubernetes"
+description: "Request — запрос ресурсов, по которому планировщик выбирает место для Pod."
 tags: [containers, kubernetes, resources]
 updated: 2026-10-06
 ---
 
-# Resources
+# Ресурсы Kubernetes
 
-Request описывает ресурс для размещения, limit ограничивает использование. Свободная память node не отменяет hard memory limit отдельного container.
-
-Per-container requests участвуют в scheduling и CPU shares; limits применяются runtime/kernel cgroups. Pod effective request включает containers и scheduling semantics init/sidecars по API rules — проверяйте manifest/status, не суммируйте на глаз сложный Pod.
+**Request** — запрос ресурсов, по которому планировщик выбирает место для Pod. **Limit** — ограничение использования, которое применяет среда запуска через ядро и cgroup. Свободная память узла не отменяет лимит отдельного контейнера.
 
 ## CPU
 
-`500m` = 0.5 CPU time. Request влияет на placement и proportional weight при contention. Limit — hard CFS bandwidth ceiling: превышение не убивает container, а throttles, что может поднять p99 при низком average CPU host.
+`500m` означает половину CPU-времени. Request влияет на размещение и относительный вес при конкуренции. CPU limit задаёт квоту времени: если контейнер потратил её раньше конца периода, ОС временно приостанавливает выполнение. Это throttling; он может повысить задержку даже при низкой средней загрузке узла.
 
-Go 1.25+ автоматически выбирает default `GOMAXPROCS` с учётом cgroup CPU limit и периодически обновляет его. CPU request без limit не задаёт такой ceiling; при manual override поведение меняется.
+Go 1.25+ при соответствующих настройках учитывает cgroup limit в выборе `GOMAXPROCS`; request без limit такого потолка не создаёт. Ручное значение и версия языка меняют настройки — см. [планировщик Go](../../go/runtime/scheduler.md).
 
-## Memory
+## Память
 
-Memory request нужен scheduler и влияет на eviction/QoS; limit задаёт cgroup boundary, превышение/reclaim failure может дать `OOMKilled`. Accounting включает не только Go heap: stacks, runtime, mmap, page cache, tmpfs `emptyDir`, socket/kernel memory.
+Memory request нужен для размещения и участвует в правилах при нехватке ресурсов узла. Limit задаёт границу cgroup; если страницы освободить невозможно, процесс может быть убит из-за нехватки памяти (`OOMKilled`). Учитывается не только куча Go: есть стеки, отображения, файловый кеш, tmpfs и память ядра.
 
-`GOMEMLIMIT` — soft Go runtime target, не hard cap; задавайте ниже container limit с измеренным headroom (запас ресурсов сверх обычной нагрузки). Слишком низкий target вызывает excessive GC, слишком высокий — OOM до полезной реакции runtime.
+`GOMEMLIMIT` — мягкий ориентир Go, а не жёсткая защита контейнера. Оставляйте измеренный запас. Слишком низкое значение заставляет часто собирать мусор; слишком высокое может не успеть предотвратить OOM.
+
+Это поле `resources` одного контейнера в `spec.containers[*]`, а не самостоятельный manifest Pod:
 
 ```yaml
 resources:
@@ -29,7 +29,13 @@ resources:
   limits: {cpu: "1", memory: 512Mi}
 ```
 
-## Diagnosis
+## Расчёт экземпляров
+
+В примере один контейнер запрашивает 250m/256Mi, а ограничен 1 CPU/512Mi. Три таких Pod требуют для размещения 750m CPU и 768Mi памяти. Во время обновления с дополнительным Pod (`surge=1`) нужно 1 CPU и 1 GiB запрошенных ресурсов. Это расчёт только указанных контейнеров: обычные init, sidecar и накладные расходы Pod учитываются по правилам API.
+
+Расход 480Mi при лимите 512Mi оставляет мало места для всплеска. `GOMEMLIMIT=400MiB` — возможная гипотеза для испытания, а не формула безопасности. Проверьте скорость выделений, CPU сборщика и полный расход cgroup.
+
+## Диагностика
 
 ```bash
 kubectl describe pod <pod>
@@ -37,15 +43,9 @@ kubectl top pod <pod> --containers
 kubectl get pod <pod> -o jsonpath='{.status.containerStatuses[*].lastState}'
 ```
 
-Смотрите usage/working set, throttling (принудительное ожидание после исчерпания квоты), `memory.events`, restart reason, node pressure и application heap/profile. Requests получают из load tests и percentiles, затем пересматривают; limit без headroom — не capacity plan.
+`describe` показывает события и причины, `top` — доступные текущие метрики, последний статус — причину прошлого завершения. Изучайте также `memory.events`, квоту CPU и память узла. Requests выбирают по нагрузочным измерениям и пересматривают.
 
-## Бюджет replicas и runtime
-
-В manifest request=250m/256Mi, limit=1CPU/512Mi. Три Pods требуют scheduler не менее 750m CPU и 768Mi memory; rollout (замена экземпляров приложения новой версией) с surge=1 потребует requests уже 1CPU/1Gi. Это расчёт только данных containers, без дополнительного Pod overhead/init/sidecar semantics.
-
-Memory usage 480Mi при limit512Mi оставляет слишком мало запаса для burst. `GOMEMLIMIT=400MiB` — гипотеза для эксперимента, не hard protection: измерьте allocation pressure, RSS/cgroup, external memory и GC CPU. CPU limit1 может регулярно throttling-ить burst при средней utilization (доля занятого ресурса за интервал) ниже1.
-
-QoS (класс ресурсообеспечения Pod) Guaranteed требует соответствующих request=limit для необходимых resources у containers; оно влияет на eviction (удаление Pod по решению платформы) ordering, но не делает Pod бессмертным. `OOMKilled` container и `Evicted` Pod — разные механизмы: первый связан с OOM, второй с решениями kubelet по node pressure и thresholds.
+QoS Guaranteed требует соответствующих request=limit для необходимых ресурсов контейнеров; этот класс влияет на порядок действий при нехватке, но не гарантирует бессмертие. `OOMKilled` относится к убийству из-за памяти, `Evicted` — к удалению Pod решением kubelet при нехватке ресурсов узла. Проверки причин различаются.
 
 ## Источники
 
@@ -54,13 +54,13 @@ QoS (класс ресурсообеспечения Pod) Guaranteed требу�
 
 ## Проверь себя
 
-1. Почему surge считают по requests?
-2. Чем OOMKilled отличается от Evicted?
+1. Почему запас на обновление считают по requests?
+2. Чем `OOMKilled` отличается от `Evicted`?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Scheduler размещает Pods по requests; peak rollout создаёт дополнительную потребность.
-2. Убийство memory controller и удаление Pod из-за node pressure — разные причины/проверки.
+1. Планировщик размещает новые Pod по их запросам ресурсов.
+2. Первый связан с OOM, второй — с удалением Pod kubelet по условиям узла.
 
 </details>

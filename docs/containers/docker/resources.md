@@ -1,31 +1,25 @@
 ---
-title: Docker resources
-description: CPU quota, memory/OOM, PID и cgroup diagnostics.
+title: "Ресурсы Docker"
+description: "На Linux Docker настраивает cgroup."
 tags: [containers, docker, cgroups]
 updated: 2026-10-06
 ---
 
-# Docker resources
+# Ресурсы Docker
 
-Лимит container ограничивает общий расход ресурсов, а не только heap приложения. Превышение CPU ведёт к ожиданию, превышение памяти может закончиться убийством процесса.
-
-Без limits container может использовать ресурсы host согласно scheduler. Docker flags на Linux настраивают cgroups; hard limits защищают соседей, но создают throttling/OOM внутри workload.
+На Linux Docker настраивает cgroup. Лимит относится ко всему контейнеру, а не только к куче приложения. CPU ограничивается временем выполнения: после исчерпания квоты работа ждёт. Нехватка памяти может завершиться убийством процесса.
 
 ## CPU
 
-`--cpus=2` задаёт CFS bandwidth quota примерно двух CPU-time cores за period, не закрепляет два физических core. `--cpu-shares`/weight влияет на долю только при contention. `--cpuset-cpus` pin-ит allowed CPUs и влияет на NUMA/cache/availability.
+`--cpus=2` задаёт бюджет примерно двух CPU за период, а не закрепляет два физических ядра. `--cpu-shares` влияет на относительную долю при конкуренции. `--cpuset-cpus` отдельно выбирает разрешённые ядра.
 
-Смотрите `cpu.stat`: throttled periods/time вместе с latency и demand. Host CPU может быть idle, пока container throttled quota.
+В `cpu.stat` изучайте прирост времени и числа пауз по квоте за интервал. Машина может иметь свободные CPU, пока контейнер принудительно ждёт. Сопоставляйте эти паузы с пользовательской задержкой.
 
-## Memory
+## Память и остальные пределы
 
-`--memory` задаёт hard limit; accounting включает больше, чем language heap (anonymous, page cache и kernel categories согласно cgroup). При невозможном reclaim (освобождение или вытеснение страниц для получения памяти) kernel может OOM-kill process; container exit часто 137, но подтвердите OOM event/inspect/kernel logs.
+`--memory` задаёт жёсткий предел. Учёт включает приложение, файловый кеш и соответствующие категории ядра. Если освобождение страниц не помогает, возможен OOM. Код выхода 137 означает `SIGKILL`, но не доказывает OOM: проверьте `.State.OOMKilled`, события и журнал.
 
-Оставляйте runtime headroom (запас ресурсов сверх обычной нагрузки): для Go soft `GOMEMLIMIT` ниже cgroup limit, потому что cgroup учёт включает также память вне Go runtime и memory limit является мягким. Не отключайте OOM killer без hard limit.
-
-## Other limits
-
-`--pids-limit` ограничивает tasks/fork bomb; `--ulimit nofile` — process FD limit; blkio/I/O controls зависят от host/storage. Compose/Swarm/Kubernetes syntax отличается — проверяйте, что выбранный orchestrator реально применяет limits.
+`--pids-limit` ограничивает задачи, включая потоки, а `--ulimit nofile` — файловые дескрипторы. Ограничения ввода-вывода зависят от устройства и системы. Синтаксис Compose, Swarm и Kubernetes различается: проверьте реально применённые настройки.
 
 ```bash
 docker stats
@@ -33,19 +27,17 @@ docker inspect <container>
 cat /sys/fs/cgroup/<path>/{cpu.stat,memory.current,memory.events,pids.current}
 ```
 
-Capacity учитывает сумму limits и failure headroom; oversubscription допустим только с monitoring/shedding.
-
-## Конкретный запуск и трактовка результата
+## Конкретный запуск
 
 ```bash
 docker run --cpus=1 --memory=512m --pids-limit=128   --ulimit nofile=4096:4096 api-image
 ```
 
-Это пример: CPU quota около 1 CPU, memory hard limit 512 МиБ, предел tasks 128 и FD 4096. PID limit учитывает tasks, поэтому большое число threads тоже важно. Критичная нагрузка должна пройти тест именно с такими лимитами.
+Пример задаёт около 1 CPU, 512 МиБ памяти, 128 задач и 4096 FD. Рабочая нагрузка должна проверяться с этими ограничениями, а не только на свободной машине.
 
-`GOMEMLIMIT=400MiB` при container 512 МиБ можно взять как гипотезу, оставляя 112 МиБ headroom; это не универсальная формула. Runtime-managed stacks уже входят в бюджет Go memory limit, а внешняя cgo/mmap и часть OS учёта — нет. Сверьте RSS/cgroup breakdown под нагрузкой.
+`GOMEMLIMIT=400MiB` здесь оставляет номинально 112 МиБ до 512 МиБ. Это гипотеза для измерения, а не универсальное правило. Лимит Go мягкий и охватывает управляемую средой выполнения память, включая её стеки; внешняя C-память, `mmap` и часть учёта ОС требуют отдельного запаса.
 
-`exit=137` означает завершение SIGKILL; подтвердите OOM через `.State.OOMKilled` и events. Увеличить лимит без поиска растущей очереди/retention — только временно отложить отказ.
+Расчёт мощности учитывает сумму ресурсов и запас при отказе. Если обещано больше, чем есть, нужны наблюдение и отказ от лишней нагрузки. Увеличение лимита без устранения растущей очереди лишь откладывает отказ.
 
 ## Источники
 
@@ -54,13 +46,13 @@ docker run --cpus=1 --memory=512m --pids-limit=128   --ulimit nofile=4096:4096 a
 
 ## Проверь себя
 
-1. Закрепляет ли --cpus=1 одно физическое ядро?
-2. Почему GOMEMLIMIT ниже memory limit?
+1. Закрепляет ли `--cpus=1` одно ядро?
+2. Почему `GOMEMLIMIT` обычно ниже полного лимита памяти?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Нет, ограничивает CPU-time quota; affinity задаётся отдельно.
-2. Он soft и охватывает только managed runtime память; нужен запас для остальных категорий.
+1. Нет: это квота времени; разрешённые ядра настраиваются отдельно.
+2. Он мягкий и не включает все категории расхода контейнера.
 
 </details>

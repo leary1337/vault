@@ -1,6 +1,6 @@
 ---
-title: Runtime trace
-description: Scheduler, blocking, syscalls и latency analysis через Go execution trace.
+title: "Трасса выполнения Go"
+description: "CPU-профиль видит работу процессора."
 tags:
   - go
   - performance
@@ -8,28 +8,18 @@ tags:
 updated: 2026-10-06
 ---
 
-# Runtime trace
+# Трасса выполнения Go
 
-Trace показывает события на временной оси: когда goroutine работала, ждала и была готова. Это объясняет задержку, которую CPU profile может не показать.
-
-Execution trace записывает runtime events: goroutine transitions, scheduler delays, syscalls, network blocking, GC и user tasks/regions. Он отвечает на вопросы, которые CPU profile не видит: почему работа runnable, но не выполняется; где goroutine blocked; как GC совпадает с latency spike.
+CPU-профиль видит работу процессора. **Трасса выполнения** показывает временную ось: когда горутина выполнялась, ждала или была готова, но ещё не получила CPU. Поэтому она помогает понять задержку, состоящую из ожидания.
 
 ```bash
 go test -trace trace.out ./path/to/pkg
 go tool trace trace.out
 ```
 
-В приложении используйте `runtime/trace` на ограниченном окне. Trace имеет overhead и быстро растёт; не оставляйте неограниченный capture.
+Трасса фиксирует переходы горутин, системные вызовы, ожидание сети, сборку мусора и пользовательские области. Собирайте ограниченный интервал: данные быстро растут и добавляют нагрузку.
 
-## User regions
-
-`trace.WithRegion`, `trace.StartRegion` и `trace.NewTask` связывают application phases с runtime events. Labels должны быть bounded (с явным пределом времени, количества или размера): не превращайте каждый user ID в отдельную категорию.
-
-## Flight recorder
-
-Go 1.25 добавил `runtime/trace.FlightRecorder`: rolling window можно сохранить при редком incident. Настройте размер/период из memory budget и защитите dump, поскольку trace может содержать operational metadata.
-
-## Связать время ожидания с операцией
+## Связь с операцией приложения
 
 ```go
 ctx, task := trace.NewTask(ctx, "load-ad")
@@ -39,9 +29,13 @@ trace.WithRegion(ctx, "db-query", func() {
 })
 ```
 
-Фрагмент функции; `result`, `err`, `repo`, `id` определены приложением, нужен `runtime/trace`. Имена категорий стабильны и не содержат user ID. В просмотрщике region виден рядом с waiting/runnable/running событиями.
+`result`, `err`, `repo`, `id` заданы приложением; нужен `runtime/trace`. `trace.WithRegion`, `StartRegion` и `NewTask` связывают фазу приложения с событиями runtime. Названия должны быть устойчивыми категориями, а не уникальным ID каждого пользователя.
 
-Если CPU свободен, а region долго ждёт channel, увеличение GOMAXPROCS не устранит задержку. Если goroutine долго runnable при занятом CPU, ищите очередь исполнения и лимиты ОС. Trace может содержать чувствительные имена/labels; храните dump как диагностический артефакт с ограниченным доступом.
+Если область долго ждёт канал при свободном CPU, повышение `GOMAXPROCS` не устранит ожидание. Если горутина долго готова при занятом CPU, проверяйте очередь исполнения и лимит ОС.
+
+## Flight recorder
+
+С Go 1.25 `runtime/trace.FlightRecorder` хранит скользящее окно, которое можно сохранить при редком инциденте. Размер и период выбирайте по бюджету памяти. Дамп может содержать служебные имена и метки: это диагностический артефакт с ограниченным доступом.
 
 ## Источники
 
@@ -51,13 +45,13 @@ trace.WithRegion(ctx, "db-query", func() {
 
 ## Проверь себя
 
-1. Почему CPU profile не видит всё время запроса?
-2. Что искать при длинном runnable-интервале?
+1. Почему CPU-профиль не показывает всё время запроса?
+2. Что искать при долгой готовности без выполнения?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Ожидание сети/lock не потребляет CPU; trace показывает эти интервалы.
-2. Недостаток ресурса исполнения, CPU saturation/throttling и очереди scheduler.
+1. Сеть и блокировки могут ждать, не расходуя CPU.
+2. Очередь исполнения, нехватку CPU и принудительные паузы по квоте.
 
 </details>

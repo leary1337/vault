@@ -21,7 +21,7 @@ site:
 
     - type: section
       key: section-data-messaging
-      title: Данные и messaging
+      title: Данные и обмен сообщениями
       path: data-messaging
       children:
         - type: space
@@ -34,7 +34,7 @@ site:
             language: ru
         - type: space
           key: space-messaging
-          title: Messaging
+          title: Обмен сообщениями
           path: messaging
           content:
             directory: ./docs/messaging
@@ -69,28 +69,28 @@ site:
             language: ru
         - type: space
           key: space-backend-patterns
-          title: Backend patterns
+          title: Паттерны backend
           path: backend-patterns
           content:
             directory: ./docs/backend-patterns
             language: ru
         - type: space
           key: space-system-design
-          title: System Design
+          title: Проектирование систем
           path: system-design
           content:
             directory: ./docs/system-design
             language: ru
         - type: space
           key: space-algorithms
-          title: Algorithms
+          title: Алгоритмы
           path: algorithms
           content:
             directory: ./docs/algorithms
             language: ru
         - type: space
           key: space-linux
-          title: Linux для backend engineer
+          title: Linux для backend-разработчика
           path: linux
           content:
             directory: ./docs/linux
@@ -105,12 +105,12 @@ site:
 
     - type: section
       key: section-observability
-      title: Observability
+      title: Наблюдаемость
       path: observability
       children:
         - type: space
           key: space-observability
-          title: Observability
+          title: Наблюдаемость
           path: observability
           default: true
           content:
@@ -119,12 +119,12 @@ site:
 
     - type: section
       key: section-backend-architecture
-      title: Backend architecture
+      title: Архитектура приложений
       path: backend-architecture
       children:
         - type: space
           key: space-backend-architecture
-          title: Backend architecture
+          title: Архитектура приложений
           path: backend-architecture
           default: true
           content:
@@ -133,12 +133,12 @@ site:
 
     - type: section
       key: section-security
-      title: Security
+      title: Безопасность
       path: security
       children:
         - type: space
           key: space-security
-          title: Backend security
+          title: Безопасность backend
           path: security
           default: true
           content:
@@ -147,12 +147,12 @@ site:
 
     - type: section
       key: section-production
-      title: Production
+      title: Диагностика сбоев
       path: production
       children:
         - type: space
           key: space-production
-          title: Production engineering
+          title: Диагностика сбоев
           path: production
           default: true
           content:
@@ -161,7 +161,7 @@ site:
 
     - type: section
       key: section-practice
-      title: Practice
+      title: Практика
       path: practice
       children:
         - type: space
@@ -175,7 +175,7 @@ site:
 
     - type: section
       key: section-interviews
-      title: Interviews
+      title: Интервью
       path: interviews
       children:
         - type: space

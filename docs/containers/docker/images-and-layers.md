@@ -1,49 +1,45 @@
 ---
-title: Images и layers
-description: OCI image content, writable layer, tags и build cache.
+title: "Образы и слои"
+description: "Образ содержит неизменяемые слои файлов и настройки запуска."
 tags: [containers, docker, images]
 updated: 2026-10-06
 ---
 
-# Images и layers
+# Образы и слои
 
-Образ состоит из неизменяемых слоёв файлов и настроек. Container добавляет свой слой изменений; tag — изменяемое имя, digest (криптографический идентификатор конкретного содержимого) — адрес конкретного содержимого.
+Образ содержит неизменяемые слои файлов и настройки запуска. Контейнер добавляет сверху свой слой изменений. **Тег** — имя, которое можно переназначить; **digest** идентифицирует конкретное содержимое.
 
-Image состоит из immutable (неизменяемый после создания) filesystem layers и configuration; digest идентифицирует content manifest, tag — mutable name. Multi-platform tag может указывать на image index с разными manifests для architectures.
+Многоплатформенный тег может вести на индекс, который выбирает отдельный образ для архитектуры. Локальный ID образа и digest репозитория не всегда обозначают одно и то же.
 
-Container добавляет writable layer поверх image через storage driver. Удаление/изменение файла создаёт upper-layer metadata/data и не уменьшает lower layer: секрет, добавленный ранним `COPY`, остаётся в history даже после `RUN rm`.
-
-## Build cache
-
-BuildKit строит content-addressed dependency graph. Изменение instruction/input invalidates этот step и dependants. Для быстрого и корректного cache:
-
-- маленький `.dockerignore`, без `.git`, binaries, secrets;
-- сначала `COPY go.mod go.sum` + download, затем source;
-- `RUN --mount=type=cache` для module/build cache;
-- remote cache в ephemeral CI;
-- reproducible dependency lock и pinned base policy.
-
-`--no-cache` переисполняет instructions, но не обязательно pull-ит свежий base; для этого нужен `--pull`. Mutable tags ухудшают reproducibility; production provenance (проверяемые данные о происхождении сборки) фиксирует digest/SBOM/signature и сознательно обновляет его.
-
-Image size влияет на transfer/start/cache и attack surface, но smallest не всегда operable: CA certificates, timezone, libc/CGO и debug needs должны быть явными. Multi-stage build удаляет compiler/source из final image.
-
-## Удалённый секрет остаётся в истории
+## Почему удаление не стирает слой
 
 ```dockerfile
 COPY secret.txt /secret.txt
 RUN rm /secret.txt
 ```
 
-Итоговый filesystem не показывает файл, но ранний layer содержит его bytes. Удаление сверху скрывает данные, а не очищает опубликованный слой. Исправление — не копировать secret в image, использовать build secret mount и не записывать его command в result.
+Итоговая файловая система скрывает секрет, но нижний слой по-прежнему содержит его байты. Удаление сверху не очищает опубликованную историю. Секрет нужно вообще не копировать в образ: используйте временное подключение BuildKit и не записывайте его командой в результат.
 
 ```mermaid
 flowchart TB
-    C["container writable layer"] --> I2["image layer: файлы приложения"]
-    I2 --> I1["image layer: зависимости"]
-    I1 --> B["base filesystem"]
+    C["изменяемый слой контейнера"] --> I2["слой образа: файлы приложения"]
+    I2 --> I1["слой образа: зависимости"]
+    I1 --> B["базовая файловая система"]
 ```
 
-`docker image inspect image --format '{{.Id}} {{json .RepoDigests}}'` показывает local identity и repository digests; они не всегда одно и то же. Multi-platform index указывает на отдельные manifests. `--no-cache` не обещает новый base: обновление base требует pull и контролируемого изменения digest.
+## Кеш сборки
+
+BuildKit связывает шаги с их входными данными. Изменение инструкции или входного файла пересобирает этот шаг и зависящие от него. Сначала копируют `go.mod`/`go.sum` и скачивают зависимости, затем исходники: изменение кода не заставляет повторять неизменную подготовку зависимостей.
+
+`.dockerignore` исключает `.git`, локальные бинарные файлы и секреты. `RUN --mount=type=cache` может сохранять кеш модулей и сборки; временный CI может использовать удалённый кеш с подходящей политикой доступа.
+
+`--no-cache` выполняет инструкции заново, но не обязательно получает новый базовый образ. Для этого нужен `--pull`. Зафиксированный digest улучшает воспроизводимость, но его нужно регулярно обновлять ради исправлений. Состав компонентов и происхождение сборки фиксируют отдельно.
+
+## Размер и рабочее окружение
+
+Несколько этапов сборки позволяют скопировать в финальный этап только результат без компилятора и исходников. Малый размер ускоряет передачу и уменьшает доступные инструменты атаки, но приложение всё ещё может нуждаться в сертификатах CA, часовых поясах, libc или библиотеках cgo.
+
+`docker image inspect image --format '{{.Id}} {{json .RepoDigests}}'` помогает посмотреть локальный ID и digest. Само наличие небольшого образа не доказывает, что он пригоден для диагностики и запуска.
 
 ## Источники
 
@@ -52,13 +48,13 @@ flowchart TB
 
 ## Проверь себя
 
-1. Почему tag не гарантирует прежний image?
-2. Что даёт multi-stage build?
+1. Почему тег не гарантирует прежнее содержимое?
+2. Что даёт сборка в несколько этапов?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Tag можно переназначить на другое содержимое.
-2. В final stage копируется нужный artifact, без compiler и временных файлов build stage.
+1. Тег можно переназначить.
+2. В рабочий образ попадает нужный результат без временных файлов и инструментов сборки.
 
 </details>

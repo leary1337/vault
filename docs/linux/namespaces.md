@@ -1,28 +1,28 @@
 ---
-title: Namespaces
-description: Isolation views для PID, mount, network, user и других ресурсов.
+title: "Пространства имён Linux"
+description: "Namespace даёт процессу отдельное представление ресурса: например, свой список PID или сетевые интерфейсы."
 tags: [linux, namespaces, containers]
 updated: 2026-10-06
 ---
 
-# Namespaces
+# Пространства имён Linux
 
-Namespace даёт процессу своё представление ресурса: список PID, сеть или mounts. Он не создаёт отдельное ядро и сам не ограничивает расход памяти/CPU.
+**Namespace** даёт процессу отдельное представление ресурса: например, свой список PID или сетевые интерфейсы. Он не создаёт новое ядро и не ограничивает CPU или память. Контейнер собирается из нескольких механизмов: пространств имён, cgroup, файловой системы и ограничений полномочий.
 
-Namespace изолирует view определённого global resource. Container обычно сочетает namespaces, cgroups, capabilities (отдельные полномочия Linux вместо всех полномочий root), seccomp (ограничение разрешённых системных вызовов) и filesystem; namespace один не является security boundary.
+| Пространство | Что меняет |
+|---|---|
+| PID | Видимые идентификаторы процессов; первый процесс имеет PID 1 внутри |
+| mount | Видимые монтирования и корневую файловую систему |
+| network | Интерфейсы, маршруты, порты, сокеты и сетевые правила |
+| user | Сопоставление UID/GID и область полномочий |
+| UTS | Имя машины |
+| IPC | Некоторые средства межпроцессного обмена |
+| cgroup | Видимые пути cgroup |
+| time | Смещения некоторых часов |
 
-| Namespace | Изолирует |
-| --- | --- |
-| PID | process ID tree; первый process становится PID 1 внутри namespace |
-| mount | mount table/root view |
-| network | interfaces, routes, ports, sockets, netfilter context |
-| user | UID/GID mappings и capabilities scope (область измерения: host, cgroup или process) |
-| UTS | hostname/domain name |
-| IPC | SysV IPC/POSIX message queues |
-| cgroup | view cgroup paths |
-| time | некоторые clocks offsets |
+## Создание и вход
 
-`clone/unshare/setns` создают/входят в namespaces. `/proc/$PID/ns/*` содержит namespace handles; одинаковый inode означает общий namespace этого типа.
+`clone`, `unshare` и `setns` создают пространства или входят в них. Ссылки `/proc/$PID/ns/*` показывают их идентификаторы: одинаковый inode означает общее пространство данного вида.
 
 ```bash
 ls -l /proc/$PID/ns
@@ -30,20 +30,22 @@ nsenter -t "$PID" -m -u -i -n -p -- sh
 unshare --user --map-root-user --mount --pid --fork sh
 ```
 
-`nsenter` меняет diagnostic context и требует privileges; не запускайте модифицирующие команды без понимания target namespace.
+`nsenter` запускает команду в окружении выбранного процесса и может требовать прав. Это полезно для диагностики, но перед изменением проверьте целевой PID: команда будет воздействовать на другое окружение.
 
-PID 1 внутри namespace должен reap (забрать status завершённого дочернего process)-ить orphan zombies и корректно обрабатывать signals. User namespace может дать root UID внутри при ограниченных host permissions, но kernel attack surface остаётся общей.
-
-## Сравнить, общая ли сеть
+## Общая ли сеть
 
 ```bash
 readlink /proc/"$PID"/ns/net
 readlink /proc/1/ns/net
 ```
 
-Вывод вида `net:[4026531992]` — identity network namespace. Одинаковый inode означает общий namespace. В контейнере `localhost` относится к его namespace; два containers в одном Kubernetes Pod обычно разделяют сеть, а два обычных Docker containers — нет.
+Вывод вроде `net:[4026531992]` идентифицирует сетевое пространство. Два контейнера одного Kubernetes Pod обычно разделяют его: `localhost` общий, поэтому возможен конфликт портов. Два обычных Docker-контейнера обычно имеют разные пространства, и их `localhost` различается.
 
-User namespace может сопоставить UID 0 внутри с непривилегированным UID на host. Это снижает часть полномочий, но атаки на общее ядро остаются возможны. Для защиты нужны capabilities/seccomp, ограничения mounts и обновлённое ядро. `nsenter` переносит диагностическую команду в другой контекст: перед изменением всегда проверьте целевой PID.
+## Границы изоляции
+
+User namespace может сопоставить UID 0 внутри с непривилегированным UID снаружи. Это уменьшает полномочия, но атаки на общее ядро остаются возможны. Дополнительно нужны capabilities — отдельные полномочия вместо всех прав root, seccomp — ограничение системных вызовов, безопасные монтирования и обновления ядра.
+
+PID 1 должен забирать результаты завершившихся дочерних процессов через `wait` и правильно обрабатывать сигналы. Пространство имён само эту ответственность не снимает.
 
 ## Источники
 
@@ -52,13 +54,13 @@ User namespace может сопоставить UID 0 внутри с непр�
 
 ## Проверь себя
 
-1. Чем cgroup отличается от namespace?
-2. Что означает localhost у двух containers одного Pod?
+1. Чем namespace отличается от cgroup?
+2. Что значит `localhost` у двух контейнеров одного Pod?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Cgroup ограничивает/учитывает ресурсы; namespace меняет видимость/идентичность.
-2. Общее loopback-пространство Pod; порты также общие и могут конфликтовать.
+1. Namespace меняет видимость и идентификаторы, cgroup учитывает и ограничивает ресурсы.
+2. Обычно это общая сеть Pod, включая порты.
 
 </details>

@@ -1,30 +1,29 @@
 ---
-title: Распределённые системы
-description: Consistency, replication, sharding, consensus и failure handling.
+title: "Распределённые системы"
+description: "Когда данные и исполнители находятся на разных узлах, часть связи может пропасть, а ответ — потеряться после успешной записи"
 tags: [distributed-systems]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
 # Распределённые системы
 
-Распределённая система состоит из компонентов, которые обмениваются сообщениями и могут отказывать независимо. Главная сложность — отличить медленный узел от потерянного, сохранить инварианты при частичной связи и восстановиться без скрытых duplicates/split brain.
+Когда данные и исполнители находятся на разных узлах, часть связи может пропасть, а ответ — потеряться после успешной записи. Раздел объясняет, как определить порядок, владельца и допустимую старость данных.
 
-Каждая guarantee имеет scope: один key или много, одна session или все clients, normal operation или partition, acknowledged write или eventual convergence. Формулируйте её вместе с failure assumptions.
-
+Открывайте нужную тему по вопросу. В статье сначала разберите механизм и пример, затем ответьте на «Проверь себя» до раскрытия ответа.
 
 ## Темы
 
-- [CAP и PACELC](cap-and-pacelc.md)
-- [Consensus](consensus.md)
-- [Consistent hashing](consistent-hashing.md)
-- [Leader election](leader-election.md)
-- [Quorums](quorums.md)
-- [Sharding](sharding.md)
-- [Идемпотентность](idempotency.md)
-- [Модели отказов](failure-models.md)
-- [Модели согласованности](consistency-models.md)
-- [Распределённые транзакции](distributed-transactions.md)
-- [Репликация](replication.md)
+- [CAP и PACELC: что делать при разрыве связи](cap-and-pacelc.md)
+- [Консенсус: как узлы выбирают одну историю](consensus.md)
+- [Согласованное хеширование: куда отправлять ключ](consistent-hashing.md)
+- [Выбор лидера и защита от старого лидера](leader-election.md)
+- [Кворум: сколько копий должны подтвердить операцию](quorums.md)
+- [Шардинг: разделение данных между владельцами](sharding.md)
+- [Идемпотентность в распределённой обработке](idempotency.md)
+- [Отказы и неизвестный исход операции](failure-models.md)
+- [Согласованность: какие значения увидит читатель](consistency-models.md)
+- [Транзакции между несколькими участниками](distributed-transactions.md)
+- [Репликация: копии данных и задержка между ними](replication.md)
 - [Часы и порядок событий](clocks-and-ordering.md)
 
 ## Источники

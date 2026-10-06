@@ -1,25 +1,19 @@
 ---
-title: gRPC interceptors
-description: Boundary middleware для auth, observability, recovery и policy.
+title: "Перехватчики gRPC"
+description: "Interceptor оборачивает RPC общими действиями: проверкой личности и прав, измерением, логом или восстановлением допустимой паники."
 tags:
   - go
   - grpc
 updated: 2026-10-06
 ---
 
-# gRPC interceptors
+# Перехватчики gRPC
 
-Interceptor — обёртка вокруг RPC. Она отвечает за общие правила вроде проверки прав и измерений, оставляя бизнес-операцию внутри handler.
+**Interceptor** оборачивает RPC общими действиями: проверкой личности и прав, измерением, логом или восстановлением допустимой паники. Бизнес-операция остаётся в обработчике.
 
-Unary и stream interceptors оборачивают client/server RPC lifecycle (жизненный цикл от запуска до завершения). Типичные задачи: authentication/authorization, tracing, metrics, structured logging, recovery и policy enforcement.
+## Порядок обёрток
 
-Порядок chain важен. Recovery должен охватывать inner application; auth должна выполняться до business handler; observability должна видеть rejected и failed calls. Не помещайте domain logic в interceptor.
-
-Stream interceptor получает wrapper stream; чтобы наблюдать каждое message, нужно корректно оборачивать `RecvMsg`/`SendMsg`. Не логируйте payload по умолчанию: он может содержать PII (персональные данные) и создавать большой cost.
-
-Client interceptor видит logical call, но retry может создавать несколько attempts внутри gRPC. Для retry observability используйте OpenTelemetry attempt metrics/статистику, а не считайте interceptor invocation равной одному network attempt.
-
-## Минимальный server unary interceptor
+Проверка прав должна быть до операции: после вызова `next` изменение уже могло произойти. Измерение должно видеть отклонённые и неудачные вызовы, а восстановление — охватывать нужную границу. Первая обёртка цепочки внешняя.
 
 ```go
 func observe(
@@ -34,9 +28,13 @@ func observe(
 }
 ```
 
-Нужны `context`, `time`, `log/slog`, `grpc`, `grpc/status`. На успешном RPC получится code=OK; payload не записывается. Настройка: `grpc.NewServer(grpc.ChainUnaryInterceptor(observe, auth, recovery))`, где auth/recovery — ваши функции. Первая обёртка внешняя; конкретный порядок выбирается так, чтобы rejected calls измерялись, а recovery охватывала допустимую границу panic.
+Нужны `context`, `time`, `log/slog`, `grpc`, `grpc/status`. При успехе лог покажет `code=OK`, а тело не записывается. Пример подключения — `grpc.NewServer(grpc.ChainUnaryInterceptor(observe, auth, recovery))`; `auth` и `recovery` реализует приложение.
 
-Unary-обёртка не обслуживает stream RPC: для них зарегистрируйте отдельный stream interceptor и корректно оберните методы потока.
+## Потоки и попытки
+
+Unary-перехватчик не обрабатывает потоковый RPC. Для потока регистрируют отдельный stream interceptor. Если нужно наблюдать каждое сообщение, корректно оборачивают `RecvMsg` и `SendMsg`. По умолчанию тело не логируют: оно может содержать персональные данные и быть большим.
+
+Клиентский interceptor видит логический вызов. Внутренние повторы gRPC могут создать несколько сетевых попыток в одном таком вызове. Для них используйте статистику попыток и подходящие метрики OpenTelemetry: число вызовов обёртки не равно числу передач по сети.
 
 ## Источники
 
@@ -45,13 +43,13 @@ Unary-обёртка не обслуживает stream RPC: для них за�
 
 ## Проверь себя
 
-1. Можно ли auth выполнить после next?
-2. Почему число interceptor calls не равно числу network attempts?
+1. Можно ли проверить права после `next`?
+2. Почему число вызовов interceptor не равно числу сетевых попыток?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Нет: бизнес-действие уже могло произойти до проверки прав.
-2. Внутренняя retry-механика может выполнить несколько попыток в одном логическом вызове.
+1. Нет: операция уже могла выполниться.
+2. Один логический вызов может иметь несколько внутренних повторов.
 
 </details>

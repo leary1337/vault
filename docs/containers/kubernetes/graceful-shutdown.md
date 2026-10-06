@@ -1,57 +1,48 @@
 ---
-title: Graceful shutdown
-description: Endpoint removal, preStop, SIGTERM и termination grace period.
+title: "Корректная остановка Pod"
+description: "Удаление Pod не выключает все сетевые маршруты одновременно."
 tags: [containers, kubernetes, lifecycle]
 updated: 2026-10-06
 ---
 
-# Graceful shutdown
+# Корректная остановка Pod
 
-Удаление Pod и удаление сетевого маршрута происходят распределённо. Приложение ещё может получить запрос после начала termination, поэтому оно должно корректно завершать приём.
+Удаление Pod не выключает все сетевые маршруты одновременно. API отмечает начало удаления, контроллеры обновляют адреса Service, а kubelet запускает остановку локально. Пока изменения распространяются, Pod ещё может получить запрос.
 
-При удалении Pod API ставит deletion timestamp; control plane обновляет EndpointSlices, а kubelet начинает local termination. Эти действия происходят распределённо, поэтому некоторое время новый traffic ещё может прийти.
+## Общий срок
 
-Kubelet выполняет `preStop` hook, если задан, затем посылает container stop signal (обычно `SIGTERM`). Весь процесс ограничен `terminationGracePeriodSeconds` (default 30 s); после grace period оставшиеся processes получают `SIGKILL`.
-
-## Application sequence
-
-1. Получить TERM через `signal.NotifyContext`.
-2. Сделать application readiness (готовность к операции или к приёму новой работы в указанном контексте) false/остановить intake.
-3. Закрыть listener или вызвать HTTP `Shutdown`; gRPC сначала `GracefulStop` с timeout fallback `Stop`.
-4. Остановить polling consumer, завершить/вернуть in-flight records без раннего offset commit.
-5. Flush critical telemetry/state в короткий bounded budget.
-6. Exit 0 до platform deadline.
-
-`preStop: sleep` может дать LB время, но съедает тот же grace budget и маскирует lifecycle race. Предпочитайте корректное endpoint termination handling и internal drain (завершение уже принятой работы); fixed delay добавляйте только после измерения инфраструктуры.
+Если задан `preStop`, kubelet выполняет его, затем посылает сигнал остановки, обычно `SIGTERM`. Всё укладывается в `terminationGracePeriodSeconds`, по умолчанию 30 секунд. После срока оставшиеся процессы получают `SIGKILL`.
 
 ```yaml
 spec:
   terminationGracePeriodSeconds: 45
 ```
 
-Shutdown budget включает worst request/RPC, queue ack и safety margin, но не должен позволять бесконечный stream. Client deadlines/retries/idempotency закрывают принудительное завершение.
+При сроке 45 секунд hook, ждущий 10 секунд, оставляет около 35 на реакцию TERM и завершение работы. Он не добавляет время сверху. Фиксированная пауза может помочь распространению маршрутов, но выбирать её нужно по измерению реального пути.
 
-Integration test: active request + TERM, проверка отсутствия новой работы, завершения bounded calls и отсутствия `SIGKILL`/duplicate side effects.
+## Действия приложения
 
-## preStop расходует общий срок
+Приложение получает TERM через `signal.NotifyContext`, перестаёт принимать новую работу и снимает готовность. HTTP использует `Shutdown`; gRPC — `GracefulStop` с ограничением ожидания и переходом к `Stop`. Обработчик очереди прекращает получение, завершает или возвращает сообщения без раннего подтверждения результата. Критичные данные и телеметрия отправляются в отдельном коротком бюджете.
 
-При `terminationGracePeriodSeconds=45` hook, который ждёт 10 секунд, оставляет около 35 секунд на TERM и завершение. Он не добавляет новый бюджет сверху. Долгий бесконечный stream нельзя ждать без предела; gRPC GracefulStop должен иметь fallback Stop.
+Уже отменённый контекст сигнала нельзя использовать для ожидания завершения: он сразу прервёт его. Долгий поток передачи также нельзя ждать бесконечно.
 
 ```mermaid
 sequenceDiagram
-    participant A as API/control plane
+    participant A as Компоненты управления
     participant K as Kubelet
-    participant P as App
-    A->>A: deletion timestamp и EndpointSlice update
-    K->>P: preStop, затем stop signal
-    P->>P: прекратить приём, drain с deadline
+    participant P as Приложение
+    A->>A: метка удаления и изменение EndpointSlice
+    K->>P: preStop, затем сигнал остановки
+    P->>P: прекратить приём, завершить работу в срок
     Note over A,P: маршруты обновляются асинхронно
-    K->>P: SIGKILL после grace, если ещё жив
+    K->>P: SIGKILL после срока, если ещё жив
 ```
 
-На современных EndpointSlices terminating endpoint имеет отдельные conditions: ready=false для совместимости, serving помогает поддерживающим data planes продолжить drain. Но конкретный LB/CNI может обрабатывать это по-своему: проверьте реальный путь трафика.
+В современных EndpointSlices удаляемый адрес имеет отдельные условия: `ready=false`, а `serving` помогает поддерживающему сетевому механизму завершать активную работу. Конкретный балансировщик и CNI могут трактовать это по-разному: проверяйте фактический путь.
 
-Тест с TERM должен покрывать один активный bounded request и один long-lived stream, а также неизвестный исход write. Retry команды допускается только при идемпотентном контракте.
+## Проверка отказа
+
+Тест должен включать активный ограниченный запрос и долгий поток, посылать TERM и подтверждать остановку приёма и завершение в срок. У принудительно прерванной записи результат может быть неизвестен. Повтор допускается только с защитой от повторного эффекта. Клиентские сроки и повторные попытки не отменяют необходимость такого контракта.
 
 ## Источники
 
@@ -60,13 +51,13 @@ sequenceDiagram
 
 ## Проверь себя
 
-1. Добавляет ли preStop время к grace period?
-2. Гарантирует ли readiness=false немедленное прекращение traffic?
+1. Добавляет ли `preStop` время к общему сроку остановки?
+2. Останавливает ли `readiness=false` трафик мгновенно?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Нет, потребляет тот же общий срок.
-2. Нет, распространение и существующие соединения асинхронны.
+1. Нет, расходует тот же срок.
+2. Нет: обновления распространяются с задержкой, а соединения уже могут быть открыты.
 
 </details>

@@ -1,17 +1,15 @@
 ---
-title: Signals и PID 1
-description: Entrypoint, signal delivery, zombie reaping и graceful stop.
+title: "Сигналы и PID 1"
+description: "Основной процесс контейнера обычно получает PID 1 внутри своего пространства."
 tags: [containers, docker, signals]
 updated: 2026-10-06
 ---
 
-# Signals и PID 1
+# Сигналы и PID 1
 
-Первый процесс namespace должен получать сигналы и забирать status завершённых детей. Shell-wrapper может перехватить сигнал до приложения.
+Основной процесс контейнера обычно получает PID 1 внутри своего пространства. `docker stop` посылает настроенный сигнал остановки, обычно `SIGTERM`, ждёт срок и затем применяет `SIGKILL`. Приложению нужно получить первый сигнал и успеть завершить работу.
 
-Container main process обычно PID 1 в PID namespace. `docker stop` посылает configured stop signal (обычно `SIGTERM`), ждёт timeout и затем `SIGKILL`.
-
-Shell-form command создаёт shell PID 1, который может не forward-ить signal child:
+## Оболочка может помешать доставке
 
 ```dockerfile
 # плохо для прямой доставки SIGTERM
@@ -21,25 +19,7 @@ ENTRYPOINT /service
 ENTRYPOINT ["/service"]
 ```
 
-Wrapper должен завершаться `exec /service "$@"`. Если application создаёт children, PID 1 обязан reap (забрать status завершённого дочернего process)-ить zombies; используйте встроенный reaper или `docker run --init`, если runtime не справляется. Один main process plus helpers допустим, но supervisor semantics должны быть осознанными.
-
-## Graceful stop
-
-Application по `SIGTERM` прекращает intake/readiness, закрывает listeners, drain (завершение уже принятой работы)-ит HTTP/gRPC/queue work в deadline и выходит. Grace period Docker/orchestrator должен быть длиннее internal shutdown budget. `SIGKILL` не запускает cleanup.
-
-`STOPSIGNAL` меняет signal image, но нестандартный выбор должен поддерживаться app/platform. Healthcheck не заменяет signal handling и не всегда влияет на restart вне Swarm/Compose policy.
-
-## Проверка
-
-```bash
-docker inspect --format '{{.State.Pid}} {{.Config.Entrypoint}} {{.Config.Cmd}}' <container>
-docker stop --time 30 <container>
-docker top <container>
-```
-
-Integration test должен держать active request, послать TERM, проверить прекращение новых и bounded completion старого.
-
-## Wrapper с правильным exec
+Строковая форма запускает оболочку, которая может не переслать сигнал дочерней программе. Форма массива запускает приложение напрямую. Если нужна обёртка, завершите её через `exec`:
 
 ```sh
 #!/bin/sh
@@ -48,9 +28,25 @@ set -eu
 exec /service "$@"
 ```
 
-Exec заменяет shell, поэтому приложение становится основным процессом. Если приложение создаёт children и не выполняет wait, `--init` помогает с reaping и signal forwarding, но не добавляет бизнес-протокол drain.
+`exec` заменяет оболочку приложением, сохраняя PID. Поэтому сигнал приходит самому приложению.
 
-Проверьте остановку с активным запросом: после TERM прекращается приём, старый запрос завершается в пределах 20 секунд, а runtime даёт 30 секунд grace. Shell-form ENTRYPOINT и неверный wrapper могут привести к KILL, хотя handler shutdown написан корректно. В журнале должны быть времена начала/окончания остановки, а не только exit code.
+## Обязанности PID 1
+
+Если программа создаёт потомков, нужно забирать их результаты через `wait`, иначе остаются зомби. `docker run --init` может помочь с этим и пересылкой сигналов, но не знает, как завершить бизнес-операции вашего сервиса.
+
+`STOPSIGNAL` меняет сигнал образа; приложение и платформа должны понимать выбранное значение. Проверка здоровья не заменяет обработку остановки и не всегда сама вызывает перезапуск.
+
+## Остановка с активной работой
+
+После TERM приложение перестаёт принимать запросы, снимает готовность, закрывает слушатели и завершает уже принятую работу в ограниченное время. Если внутренний бюджет 20 секунд, платформе можно дать 30 секунд, чтобы осталось время на освобождение ресурсов.
+
+```bash
+docker inspect --format '{{.State.Pid}} {{.Config.Entrypoint}} {{.Config.Cmd}}' <container>
+docker stop --time 30 <container>
+docker top <container>
+```
+
+Проверка должна держать активный запрос, отправлять TERM и подтверждать отказ от новой работы и ограниченное завершение старой. Логируйте начало и конец остановки. Неправильная обёртка может привести к KILL, хотя обработчик сервиса написан верно. `SIGKILL` не даёт выполнить уборку.
 
 ## Источники
 
@@ -59,13 +55,13 @@ Exec заменяет shell, поэтому приложение станови�
 
 ## Проверь себя
 
-1. Что делает exec в wrapper?
-2. Заменяет ли --init graceful shutdown приложения?
+1. Что делает `exec` в обёртке?
+2. Заменяет ли `--init` корректную остановку приложения?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Заменяет shell процессом приложения, сохраняя PID и прямую доставку сигналов.
-2. Нет, помогает process management, но app сама завершает управляемую работу.
+1. Заменяет оболочку процессом приложения и обеспечивает прямую доставку сигналов.
+2. Нет: он помогает управлять процессами, а протокол завершения запросов реализует приложение.
 
 </details>

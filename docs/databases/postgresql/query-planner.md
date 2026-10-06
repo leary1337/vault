@@ -1,57 +1,31 @@
 ---
-title: Query planner
-description: Statistics, cost model, join order и plan cache.
+title: Планировщик запросов
+description: Как статистика помогает выбрать способ чтения и почему перекос данных меняет план.
 tags: [databases, postgresql, performance]
 updated: 2026-10-06
 ---
 
-# Query planner
+# Планировщик запросов
 
-Планировщик оценивает способы выполнения по статистике. Если ожидает 10 строк, а получает миллион, выбранный алгоритм может стать очень дорогим.
+Один SQL можно выполнить разными способами. Для одного заказа клиента выгоден поиск по индексу; для 90% таблицы — возможно, последовательное чтение. Планировщик выбирает способ по оценкам, не выполняя все варианты заранее.
 
-Planner перечисляет допустимые paths и выбирает план с наименьшей оценочной cost. Cost — безразмерная модель, а не миллисекунды; её компоненты зависят от оценённого числа rows, I/O, CPU, parallelism и параметров сервера.
+## Откуда берутся оценки
 
-## Статистика
+`ANALYZE` изучает выборку и сохраняет статистику: частые значения, долю `NULL`, число разных значений, границы распределения и связь значения с физическим порядком. По ней оценивается, сколько строк пройдёт условие.
 
-`ANALYZE` собирает samples и хранит в `pg_statistic`/`pg_stats`:
+Если страна и город связаны, отдельные статистики колонок могут ошибаться: город не выбирается независимо от страны. `CREATE STATISTICS` учитывает зависимости и комбинации значений. Это помогает внутри таблицы, но не исправляет любую оценку соединения таблиц.
 
-- estimated distinct count;
-- most common values и frequencies;
-- histogram bounds;
-- null fraction;
-- physical correlation.
+## Что означает стоимость
 
-Независимые column statistics ошибаются при корреляции. `CREATE STATISTICS` добавляет extended statistics для dependencies, multivariate distinct counts и most-common combinations.
+`cost` — относительная модель работы процессора и чтения страниц, не миллисекунды. На выбор влияют индексы, сортировка, `LIMIT`, память для сортировки и хеширования, параллелизм и параметры стоимости чтения.
 
-```sql
-CREATE STATISTICS orders_customer_status_stats
-    (dependencies, mcv)
-ON customer_id, status
-FROM orders;
+Планировщик не знает точно, какие страницы прямо сейчас в кэше и сколько запросов будет конкурировать за диск. План — обоснованная оценка, не обещание времени.
 
-ANALYZE orders;
-```
+## Как найти причину плохого плана
 
-Если estimated rows сильно расходятся с actual rows, сначала проверяйте свежесть/качество statistics и распределение данных, а не отключайте scan или join method.
+Получите безопасный [EXPLAIN](explain.md) с фактическими строками. Идите снизу вверх до первого расхождения ожидаемого и реального количества. Проверьте свежесть статистики, перекос значений, условия и преобразования типов. Затем измените запрос, статистику или индекс и измерьте на характерных данных.
 
-## Что влияет на план
-
-- predicates и доступные indexes/operator classes;
-- `ORDER BY`, `LIMIT`, grouping и required output;
-- `work_mem` для sort/hash, parallel settings;
-- `random_page_cost`, `seq_page_cost`, effective cache assumptions;
-- join order и число tables;
-- parameter values и custom/generic prepared plan.
-
-Planner не знает реальную текущую cache residency, будущую конкуренцию или прикладную стоимость tail latency. Configuration parameters калибруют модель к storage/workload; менять их под один запрос опасно.
-
-## Диагностика
-
-1. Получите безопасный [`EXPLAIN (ANALYZE, BUFFERS)`](explain.md).
-2. Найдите первый узел снизу, где estimate расходится с actual.
-3. Проверьте stale statistics, skew, correlation, casts/functions и predicates.
-4. Сократите объём данных раньше, добавьте подходящий index или перепишите запрос.
-5. Повторите измерение на репрезентативных данных.
+Подготовленный запрос может использовать план под значение параметра или общий план. При перекосе один общий план бывает неудобен. Сравнение `force_custom_plan` и `force_generic_plan` в отдельной сессии выявляет это. Постоянное отключение `Seq Scan` не исправляет неверную статистику.
 
 ## Перекос распределения
 
@@ -68,9 +42,31 @@ EXPLAIN EXECUTE find_tenant(99999);
 DEALLOCATE find_tenant;
 ```
 
-Для tenant 1 подходят 90000 строк, для 99999 одна. Первая ситуация может предпочесть Seq Scan, вторая Index Scan. PostgreSQL при auto сначала использует custom plans и затем сравнивает общий план со средней стоимостью custom. Prepared statement не всегда generic. Для диагностики в отдельной сессии сравните force_custom_plan и force_generic_plan через plan_cache_mode; это эксперимент, не глобальное исправление.
+Для клиента 1 подходят 90000 строк, для 99999 — одна. Последовательное чтение всей таблицы может быть выгодно первому, поиск по индексу — второму. При автоматическом выборе PostgreSQL сначала использует планы под параметры, затем сравнивает общий план со средней оценочной стоимостью этих планов. Подготовленный запрос не обязательно использует общий план. Для эксперимента в отдельной сессии сравните `force_custom_plan` и `force_generic_plan` через `plan_cache_mode`.
 
-Коррелированные поля страны и города требуют extended statistics; они помогают внутри таблицы, но не исправляют автоматически любую оценку join нескольких таблиц. Statistics target увеличивает детализацию и стоимость ANALYZE. Не превращайте отключение Seq Scan в постоянный обход неправильной статистики.
+Если значения страны и города связаны, расширенная статистика помогает учитывать это. Увеличение `statistics target` повышает детализацию, но добавляет работу `ANALYZE`. Ни одна настройка не исправляет автоматически все соединения таблиц; постоянное отключение последовательного чтения скрывает причину вместо её устранения.
+
+## Учесть связь между колонками
+
+Самостоятельный пример: в каждой строке страна определяет город. До создания расширенной статистики планировщик может считать два фильтра независимыми.
+
+```sql
+CREATE TABLE plan_places(country text NOT NULL,city text NOT NULL);
+INSERT INTO plan_places
+SELECT CASE WHEN n<=5000 THEN 'RU' ELSE 'FR' END,
+       CASE WHEN n<=5000 THEN 'Moscow' ELSE 'Paris' END
+FROM generate_series(1,10000) AS n;
+ANALYZE plan_places;
+EXPLAIN (ANALYZE, TIMING OFF)
+SELECT * FROM plan_places WHERE country='RU' AND city='Moscow';
+CREATE STATISTICS plan_places_country_city (dependencies, mcv)
+ON country,city FROM plan_places;
+ANALYZE plan_places;
+EXPLAIN (ANALYZE, TIMING OFF)
+SELECT * FROM plan_places WHERE country='RU' AND city='Moscow';
+```
+
+В обоих случаях фактически подходят 5000 строк. Сравните оценку `rows` с `actual rows` у узла чтения до и после: без учёта связи две доли по 1/2 могут дать оценку около 2500. `dependencies` сохраняет зависимость колонок, `mcv` — частые сочетания значений. CREATE STATISTICS только объявляет объект; следующий ANALYZE собирает данные. Конкретные оценки зависят от выборки и настроек. Это улучшает модель совместных условий внутри таблицы; выполнение на такой маленькой таблице не обязано ускориться и не проверяет оценки соединения разных таблиц.
 
 ## Источники
 
@@ -78,22 +74,24 @@ DEALLOCATE find_tenant;
 - [Query planning configuration](https://www.postgresql.org/docs/18/runtime-config-query.html)
 - [Prepared statements](https://www.postgresql.org/docs/18/sql-prepare.html)
 
+- [CREATE STATISTICS](https://www.postgresql.org/docs/18/sql-createstatistics.html)
+
 ## Проверь себя
 
-1. **Почему одному SQL нужны разные планы для разных tenants?**
+1. **Почему запросу нужны разные планы для разных клиентов?**
 
    <details>
    <summary>Ответ</summary>
 
-   Одна строка и 90% таблицы имеют разную стоимость index/heap чтения.
+   Поиск одной строки и чтение 90% таблицы имеют разную стоимость индекса и обращений к страницам.
 
    </details>
 
-2. **cost=100 означает 100 ms?**
+2. **Означает ли cost=100 время 100 мс?**
 
    <details>
    <summary>Ответ</summary>
 
-   Нет, это относительная стоимость модели.
+   Нет. Это относительная стоимость модели, не измеренное время.
 
    </details>

@@ -1,42 +1,31 @@
 ---
-title: Connection pooling
-description: Почему соединения дороги и чем отличаются session и transaction pooling.
+title: Пул соединений
+description: Как соединения переиспользуются, почему запрос ждёт пул и как отличить это от медленного SQL.
 tags: [databases, postgresql, operations]
 updated: 2026-10-06
 ---
 
-# Connection pooling
+# Пул соединений
 
-Пул — очередь к ограниченному набору соединений. Он переиспользует подключения и ограничивает число одновременно выполняемых запросов, но не увеличивает мощность базы.
+Пул хранит ограниченный набор готовых соединений. Запрос берёт свободное соединение, использует и возвращает. Когда все заняты, новый запрос ждёт или получает ошибку по сроку ожидания. Это уменьшает повторные подключения и ограничивает нагрузку на базу.
 
-Каждому прямому client connection соответствует backend process с памятью и server state. Очень высокий `max_connections` увеличивает context switching и совокупную память; pool ограничивает реальную database concurrency и повторно использует connections.
+## Два места, где может находиться пул
 
-## Два уровня pool
+Пул приложения, например `database/sql`, ограничивает соединения одного процесса. Внешний посредник, например PgBouncer, может распределять соединения многих приложений между меньшим числом серверных соединений.
 
-Application pool держит ограниченное число открытых connections на process/instance. Внешний pooler может multiplex-ить много clients на меньшее число PostgreSQL sessions.
+В режиме **session pooling** клиент получает серверное соединение на всю сессию. В **transaction pooling** — только на транзакцию; следующая транзакция может попасть на другое. Поэтому установленный обычным `SET` параметр, временная таблица, подписка `LISTEN` или блокировка уровня сессии не должны считаться автоматически сохранёнными для следующей транзакции. Точную поддержку проверяют для версии посредника; `SET LOCAL` ограничивает параметр текущей транзакцией.
 
-- Session pooling закрепляет server connection за client session; совместим почти со всеми session features, но multiplexing слабее.
-- Transaction pooling выдаёт server connection только на время transaction; лучше multiplexing, но session state между transactions нельзя считать закреплённым.
+## Как выбрать лимит
 
-При transaction pooling осторожны `SET` без `LOCAL`, temporary tables, session advisory locks, `LISTEN/NOTIFY`, prepared statements и другие session-scoped features — точная поддержка зависит от pooler/version/configuration.
+База имеет конечную мощность. Если запросы уже конкурируют за диск или блокировку, увеличение пула добавит конкурентов, а не скорость. Считайте лимиты всех экземпляров приложения: 40 процессов по 50 соединений допускают 2000 соединений, ещё до фоновых задач и миграций. Оставьте отдельный запас для администрирования.
 
-## Настройка
+Начальная оценка: число операций в секунду × среднее время удержания соединения. Затем проверьте под нагрузкой очередь, задержки и насыщение базы. Среднее значение не покрывает всплески и медленные запросы автоматически.
 
-Размер pool — capacity decision, а не «число CPU × магическая константа». Ограничения задают:
+## Четыре разных ожидания
 
-- допустимая active concurrency базы;
-- latency и время transaction;
-- число application replicas и фоновых workers;
-- reserved connections для admin/migrations;
-- downstream I/O и lock contention.
+Запрос может ждать свободное соединение, установление нового соединения, выполнение SQL или освобождение блокировки. Это разные причины задержки и разные таймауты. Измеряйте получение соединения отдельно от SQL. При отмене драйвер должен корректно завершить текущую команду или закрыть соединение, прежде чем передать его следующему запросу.
 
-Суммируйте максимумы всех instances: pool 50 у 40 pods означает до 2000 connections. Небольшая bounded queue обычно лучше неограниченного открытия connections.
-
-## Timeouts и lifecycle
-
-Различайте timeout ожидания connection в pool, connect timeout, statement/lock timeout и context deadline запроса. При отмене SQL driver должен отправить cancel и дождаться/закрыть connection так, чтобы следующий borrower не получил незавершённый protocol state.
-
-Наблюдайте active/idle/waiting clients, acquisition latency, connection churn, `pg_stat_activity`, transaction duration и database saturation. Pool скрывает connection setup, но не создаёт дополнительную CPU/I/O capacity.
+Занятый пул при низкой загрузке процессора может означать долгие транзакции или незакрытый `Rows`, а не нехватку процессорной мощности.
 
 ## Пул как ограничитель
 
@@ -58,9 +47,9 @@ s := db.Stats()
 fmt.Println(s.InUse, s.WaitCount, s.WaitDuration)
 ```
 
-Imports: fmt, time. database/sql по умолчанию не ограничивает MaxOpenConns; pgxpool имеет свои defaults. Суммируйте лимиты pods и фоновых jobs. Низкая CPU и занятые connections могут означать долгие транзакции или забытый Rows.Close.
+Для фрагмента нужны импорты `fmt` и `time`. `InUse` — сейчас занятые соединения; `WaitCount` — накопленное число ожиданий; `WaitDuration` — суммарное время ожидания. Для оценки текущего интервала сравнивайте изменения счётчиков, не только их общий итог. `database/sql` по умолчанию не ограничивает `MaxOpenConns`; `pgxpool` имеет собственные значения. Суммируйте лимиты экземпляров приложения и фоновых задач. Занятые соединения при низкой загрузке процессора могут указывать на долгие транзакции или незакрытый `Rows`.
 
-PgBouncer transaction pooling меняет backend между транзакциями. Protocol-level prepared statements в современных версиях поддерживаются при ненулевом max_prepared_statements; SQL PREPARE/DEALLOCATE имеет другие ограничения. SET LOCAL внутри транзакции безопаснее надежды на сохранённый session state.
+PgBouncer в режиме transaction pooling может менять серверное соединение между транзакциями. Современные версии поддерживают подготовленные запросы протокольного уровня при ненулевом `max_prepared_statements`; SQL-команды `PREPARE/DEALLOCATE` имеют другие ограничения. Не переносите гарантию одного механизма на другой. `SET LOCAL` в транзакции надёжнее ожидания сохранённого состояния сессии.
 
 - [PgBouncer compatibility](https://www.pgbouncer.org/features.html)
 - [database/sql DB](https://pkg.go.dev/database/sql#DB)
@@ -73,20 +62,20 @@ PgBouncer transaction pooling меняет backend между транзакци
 
 ## Проверь себя
 
-1. **Почему увеличение pool может ухудшить latency?**
+1. **Почему больший пул может увеличить задержку?**
 
    <details>
    <summary>Ответ</summary>
 
-   Насыщенная база получает больше конкуренции и lock contention.
+   Насыщенная база получает больше конкурентов; они дольше ждут диск и блокировки.
 
    </details>
 
-2. **Как отличить pool wait от SQL latency?**
+2. **Как отличить ожидание соединения от медленного SQL?**
 
    <details>
    <summary>Ответ</summary>
 
-   Измерять acquisition отдельно; смотреть InUse/WaitDuration и ожидания PostgreSQL.
+   Измерять получение соединения отдельно, сравнивать InUse и прирост WaitDuration, затем ожидания запросов на сервере.
 
    </details>

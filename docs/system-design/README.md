@@ -1,20 +1,18 @@
 ---
-title: System Design
-description: Практический процесс проектирования backend-систем и разборы кейсов.
+title: "Проектирование систем"
+description: "Каждая схема связывает пользовательское действие с данными и последствиями отказа"
 tags: [system-design]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
-# System Design
+# Проектирование систем
 
-Раздел помогает провести реальное design discussion: от требований и оценки нагрузки до failure scenarios, observability и security. [Процесс проектирования](system-design-process.md) задаёт порядок вопросов; [fundamentals](fundamentals/README.md) объясняют отдельные решения; [cases](cases/README.md) показывают несколько допустимых архитектур и trade-offs.
+Каждая схема связывает пользовательское действие с данными и последствиями отказа. Основы объясняют решения, кейсы показывают их совместную работу на конкретном примере.
 
-Не начинайте с списка технологий. Сначала определите invariant, SLO, data ownership и границы failure. Диаграмма high-level components полезна только вместе с write/read paths, capacity и восстановлением.
+Открывайте нужную тему по вопросу. В статье сначала разберите механизм и пример, затем ответьте на «Проверь себя» до раскрытия ответа.
 
-Результат design review — не «идеальная схема», а проверяемые решения:
+## Разделы
 
-- contracts и источники истины;
-- budgets latency/availability/durability;
-- capacity assumptions и thresholds;
-- failure behavior, degraded modes и recovery;
-- alternatives, риски и критерии пересмотра.
+- [Как объяснить устройство системы](system-design-process.md)
+- [Основы проектирования](fundamentals/README.md)
+- [Примеры устройства систем](cases/README.md)

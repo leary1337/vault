@@ -1,67 +1,41 @@
 ---
-title: Thundering herd
-description: Диагностика синхронных cache misses, expirations, reconnects и wake-ups.
+title: "Одновременный наплыв одинаковой работы"
+description: "Когда у популярного ключа истёк кэш, множество клиентов одновременно обнаруживает отсутствие"
 tags: [production, cache, concurrency]
 updated: 2026-10-06
 ---
 
-# Thundering herd
+# Одновременный наплыв одинаковой работы
 
-Стадо — множество клиентов одновременно запускает одну и ту же работу после общего события.
+Когда у популярного ключа истёк кэш, множество клиентов одновременно обнаруживает отсутствие. Каждый запускает одну и ту же дорогую загрузку, перегружая источник.
 
-## Симптомы
+## Как это работает
 
-Короткие резкие пики одинаковой работы перегружают database/API/CPU после cache expiry, restart, reconnect или scheduled boundary; множество callers ждут один и тот же result.
+Сопоставьте всплеск с общим событием: истечением срока кэша, запуском экземпляров или восстановлением соединения. Убедитесь, что запросы требуют одинакового результата. Если ключи разные, объединение одинаковых загрузок почти не поможет.
 
-## Возможные причины
+Внутри процесса singleflight позволяет одной загрузке обслужить всех ожидающих. Между процессами остаются отдельные загрузки, поэтому нужен общий предел или дополнительная координация. Случайный разброс сроков и постепенный прогрев уменьшают синхронный старт.
 
-Одинаковый TTL (время жизни записи), cold cache/deploy, hot key (ключ с непропорционально высокой нагрузкой), cache outage, synchronized cron, reconnect без jitter, broadcast wake-up, lock expiry или retry после общего timeout.
+Если продукт допускает старые данные, можно показывать прежнюю копию во время фонового обновления. Предельный срок её жизни всё равно ограничивают. Для прав доступа такая уступка может быть недопустима; возможность старого ответа должна быть частью контракта.
 
-## Что измерить
+## Разобранный пример
 
-Request/miss/load rate по normalized key class, concurrent fills, cache hit/eviction/expiry, downstream amplification, lock/singleflight wait, scheduled timestamps и recovery slope.
+При 1000 запросов/с и загрузке 200 мс за время первой загрузки могут прийти около двухсот одинаковых запросов. Без объединения каждый обратится к БД. Singleflight в одном процессе уменьшает это до одной загрузки, но пятьдесят процессов могут сделать до пятидесяти.
 
-## Проверка гипотез
-
-Сопоставьте spike с expiry/deploy/schedule. Определите, одинаковый ли key/work у calls и кто должен координировать fill. Проверьте, herd локален instance-у или fleet-wide; local singleflight не защищает общий backend от многих replicas.
-
-## Инструменты
-
-Cache metrics/key sampling без PII (персональные данные), traces producer/waiters, scheduler/deploy events, downstream QPS (число запросов в секунду), Redis hot-key/latency tooling и concurrency profiles.
-
-## Как уменьшить ущерб
-
-Serve stale if safe, rate/load shed, ограничить concurrent fills, singleflight/lease, постепенно warm cache, добавить jitter к refresh/reconnect и временно увеличить dependency capacity. Distributed lock без fencing/TTL design может создать новый failure.
-
-## Механизм причины
-
-Найдите общий synchronization event и отсутствие coordination/randomization/bound: какая работа дублировалась, сколько раз и почему cache/dependency получил burst.
-
-## Предотвращение
-
-TTL jitter, stale-while-revalidate, proactive refresh, negative caching с осторожностью, local + distributed request coalescing, warm-up/ramp-up, hot-key sharding и randomized schedules. См. [singleflight](../backend-patterns/singleflight.md) и [cache-aside](../backend-patterns/cache-aside.md).
-
-## Разбор с числами
-
-Учебный пример: TTL hot key истёк, 1 000 requests/s, DB loader 200 ms. До появления нового значения примерно 200 одинаковых загрузок в одном процессе без coalescing. Local singleflight уменьшает их до одной, но при 50 processes остаётся до 50 загрузок.
-
-Свидетельства: miss spike совпал с expiry, однотипный key в sampled traces, DB QPS растёт без роста user RPS. Альтернатива — новый уникальный traffic: keys разные, singleflight почти не поможет. Различаем по sampled key class без вывода PII.
-
-Для разрешённых stale данных soft TTL запускает refresh в фоне, hard TTL ограничивает максимальную жизнь. Refresh имеет bounded (с явным конечным пределом) lifetime, jitter и concurrency limit. Для прав доступа stale fallback может быть недопустим. Запланированная очистка всего кэша в полночь воспроизводит herd каждый день; постепенный warm-up/ramp-up безопаснее.
-
-## Источник механизма
-
-[Go singleflight](https://pkg.go.dev/golang.org/x/sync/singleflight). Числа и topology в примерах — учебные допущения, не параметры этой системы.
+Проверьте совпадение времени промахов с истечением срока и выборочно сравните тип ключей без вывода персональных данных. При разных ключах причина другая. Для разрешённого старого ответа задайте срок фонового обновления и предельный срок показа; обновление тоже имеет отмену и предел параллелизма.
 
 ## Проверь себя
 
-1. Почему local singleflight не полностью защищает fleet?
-2. Когда нельзя serve stale?
+1. Почему локальное объединение не защищает все экземпляры?
+2. Когда нельзя показывать старую копию?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Каждый процесс имеет отдельную Group.
-2. Если устаревшее значение нарушает права, деньги или другой строгий invariant (правило, которое система обязана сохранять).
+1. У каждого процесса своя группа ожидания.
+2. Когда она нарушает права, денежные правила или иной обязательный инвариант.
 
 </details>
+
+## Источники
+
+- [Go singleflight](https://pkg.go.dev/golang.org/x/sync/singleflight)

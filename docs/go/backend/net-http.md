@@ -1,6 +1,6 @@
 ---
-title: net/http
-description: Request lifecycle, handlers, middleware, bodies и streaming в net/http.
+title: "`net/http`"
+description: "Сервер принимает соединение и вызывает ServeHTTP обработчика."
 tags:
   - go
   - http
@@ -9,9 +9,7 @@ updated: 2026-10-06
 
 # `net/http`
 
-Handler — функция обработки HTTP-запроса. Router выбирает handler, middleware добавляет общие действия до и после его вызова.
-
-Server принимает connection, читает request и вызывает `ServeHTTP(ResponseWriter, *Request)` своего `Handler`; если Handler равен nil, используется `DefaultServeMux`. `ServeMux` — один из вариантов маршрутизации, можно передать собственный handler/router. Handler должен учитывать cancellation и не использовать `ResponseWriter` после return.
+Сервер принимает соединение и вызывает `ServeHTTP` обработчика. Маршрутизатор выбирает нужный обработчик, а middleware оборачивает его общими действиями. При `Handler: nil` используется `DefaultServeMux`, но можно передать собственный маршрутизатор.
 
 ```go
 type Handler interface {
@@ -19,11 +17,9 @@ type Handler interface {
 }
 ```
 
-`HandlerFunc` адаптирует function. С Go 1.22 `ServeMux` поддерживает method/host/path patterns и path wildcards; более специфичный pattern выигрывает, конфликтующие patterns вызывают panic при registration. `GODEBUG=httpmuxgo121=1` возвращает правила Go 1.21. Эти правила относятся к ServeMux, а не к любому router.
+`HandlerFunc` превращает функцию в обработчик. С Go 1.22 ServeMux поддерживает методы, имена и шаблоны пути. Более конкретный шаблон выигрывает, конфликтующие вызывают панику при регистрации. `GODEBUG=httpmuxgo121=1` возвращает старые правила; они не относятся автоматически к сторонним маршрутизаторам.
 
 ## Middleware
-
-Middleware оборачивает handler и отвечает за одну boundary (граница ответственности между слоями)-задачу: recovery, auth, request ID, metrics, tracing, body limit. Порядок важен: recovery/observability обычно должны охватывать inner middleware.
 
 ```go
 func withRequestID(next http.Handler) http.Handler {
@@ -34,19 +30,17 @@ func withRequestID(next http.Handler) http.Handler {
 }
 ```
 
-## Body и response
+Порядок обёрток определяет, что попадёт под восстановление паники, проверку прав и измерения. Обычно внешние обёртки должны видеть ошибки внутренних. Каждый слой должен иметь понятную ответственность.
 
-- Ограничивайте request body через `http.MaxBytesReader` до decoding.
-- На server request body обычно закрывается server-ом; handler может закрыть раньше.
-- Header нужно установить до `WriteHeader`/первого `Write`.
-- Первый `Write` без `WriteHeader` отправляет `200 OK`.
-- Не передавайте внутренние error strings клиенту.
+## Тело и ответ
 
-Для streaming проверяйте `http.Flusher`, context cancellation и backpressure (замедление приёма, когда обработчик не успевает). Response buffering/proxy timeouts могут нивелировать flush; это end-to-end свойство.
+До декодирования ограничьте тело через `http.MaxBytesReader`. Сервер обычно закрывает тело входящего запроса; обработчик может сделать это раньше. Заголовки задаются до `WriteHeader` или первой записи. `Write` без заданного статуса начинает ответ `200`.
 
-## Минимальный маршрут с параметром
+После возврата обработчика нельзя пользоваться `ResponseWriter`. Внутренние ошибки не отправляйте клиенту текстом. Для потокового ответа нужны возможность flush, отмена и предел буфера; прокси может всё равно буферизовать данные.
 
-Полная программа для Go 1.22+, нужна локальная сеть для запуска:
+## Маршрут на примере
+
+Полная программа для Go 1.22+:
 
 ```go
 package main
@@ -67,9 +61,9 @@ func main() {
 }
 ```
 
-`GET /users/42` вернёт `200` и `user=42`; `POST` по этому пути — `405`. Pattern GET также допускает HEAD. Это учебный локальный сервер; для внешнего сервиса задайте `Server` с limits/timeouts.
+`GET /users/42` даёт `200` и `user=42`; `POST` — `405`. Шаблон GET допускает HEAD. Это локальный пример; внешний сервер требует явных настроек.
 
-Первый `Write` фиксирует окончательный HTTP-ответ. Если после частичного body произошла ошибка, заменить статус на `500` уже нельзя: логируйте проблему, прекращайте stream или проектируйте протокол с отдельным итоговым результатом. Обёртка ResponseWriter должна сохранять нужные возможности (`Flusher`/`Hijacker` или `Unwrap` для ResponseController).
+После отправки окончательного статуса нельзя заменить его на `500`, если позже произошла ошибка. Логируйте и прекращайте поток либо задавайте отдельный итоговый результат в протоколе. Обёртка ResponseWriter должна сохранять необходимые возможности `Flusher`, `Hijacker` или `Unwrap` для ResponseController.
 
 ## Источники
 
@@ -79,13 +73,13 @@ func main() {
 
 ## Проверь себя
 
-1. Можно ли изменить status после первого Write?
-2. Почему middleware wrapper способен сломать streaming?
+1. Можно ли заменить окончательный статус после первой записи тела?
+2. Как обёртка может сломать потоковый ответ?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Окончательный статус уже отправлен; второй WriteHeader его не заменяет.
-2. Он может скрыть интерфейс flush или неправильно буферизовать данные.
+1. Нет: заголовки уже отправлены.
+2. Скрыть возможность flush или неправильно буферизовать данные.
 
 </details>

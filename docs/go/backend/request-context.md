@@ -1,6 +1,6 @@
 ---
-title: HTTP request context
-description: Cancellation и deadline propagation через HTTP handlers и clients.
+title: "Контекст HTTP-запроса"
+description: "Контекст связывает работу с жизнью запроса."
 tags:
   - go
   - http
@@ -8,11 +8,9 @@ tags:
 updated: 2026-10-06
 ---
 
-# HTTP request context
+# Контекст HTTP-запроса
 
-Context запроса соединяет жизнь клиента с работой сервера. Если клиент ушёл, незавершённая работа обычно должна перестать занимать ресурсы.
-
-`r.Context()` отменяется, когда client connection закрылась, request отменён (HTTP/2) или `ServeHTTP` вернулся. Handler должен передавать этот context в SQL, gRPC и downstream HTTP.
+Контекст связывает работу с жизнью запроса. Если клиент ушёл или обработчик завершился, результат обычно уже не нужен. `r.Context()` отменяется при обнаруженном закрытии соединения, отмене запроса HTTP/2 или возврате `ServeHTTP`.
 
 ```go
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -25,11 +23,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-Создавая child timeout, не увеличивайте parent deadline. Для outbound HTTP используйте `http.NewRequestWithContext`; для SQL — `QueryContext`/`ExecContext`.
+Передавайте этот контекст в SQL, gRPC и исходящий HTTP. Дочерний таймаут может сократить, но не продлить родительский срок. Для HTTP есть `NewRequestWithContext`, для SQL — `QueryContext` и `ExecContext`.
 
-Request-scoped values подходят для trace/request ID и verified principal. Dependencies передавайте явно. Detached post-response work должен иметь отдельный owner, queue limit и shutdown context; `context.WithoutCancel` сам по себе этого не создаёт.
+## Исходящий запрос
 
-## Отмена на границе исходящего HTTP
+Фрагмент обработчика; `client` и URL — зависимости. Нужны `context`, `time`, `net/http`:
 
 ```go
 ctx, cancel := context.WithTimeout(r.Context(), 300*time.Millisecond)
@@ -45,9 +43,13 @@ if err != nil { /* классифицировать timeout/cancellation */
 defer resp.Body.Close()
 ```
 
-Это фрагмент handler; `client` и URL — зависимости, нужны `context`, `time`, `net/http`. Если у родителя остаётся 100 мс, дочерние 300 мс не продлят этот срок. Чтение body тоже зависит от request context.
+Если осталось 100 мс, дочерние 300 не добавят времени. Чтение тела ответа тоже связано с контекстом исходящего запроса. Обрыв сети может обнаружиться лишь после ожидания: мгновенная отмена не гарантирована.
 
-Обрыв соединения не гарантирует мгновенного обнаружения: сеть может молчать до timeout. Не отправляйте ошибку клиенту, который уже отключился, и не считайте context cancellation доказательством отката записей. Для важной постобработки используйте долговечную очередь или transactional outbox.
+## Работа после ответа
+
+Данные контекста подходят для идентификатора запроса и проверенной идентичности. Зависимости передавайте явно. `WithoutCancel` не создаёт владельца, очередь или срок для фоновой работы.
+
+Важную доставку после ответа переносите в управляемую долговечную очередь или transactional outbox. Контекст запроса после возврата уже отменяется. Отмена также не доказывает откат записи: операция могла выполниться, а ответ потеряться.
 
 ## Источники
 
@@ -56,13 +58,13 @@ defer resp.Body.Close()
 
 ## Проверь себя
 
-1. Когда отменяется server request context?
-2. Можно ли использовать r.Context после return для важной доставки?
+1. Когда отменяется контекст серверного запроса?
+2. Почему он не подходит для важной доставки после ответа?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. При завершении handler, обнаруженном disconnect или отмене HTTP/2 request.
-2. Он уже отменяется; нужен самостоятельный управляемый lifecycle (жизненный цикл от запуска до завершения), обычно очередь.
+1. При возврате обработчика, обнаруженном отключении или отмене HTTP/2.
+2. Он уже отменяется; работе нужен отдельный управляемый жизненный цикл, часто очередь.
 
 </details>

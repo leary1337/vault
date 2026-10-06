@@ -1,73 +1,65 @@
 ---
-title: Процесс System Design
-description: Пятнадцать шагов от requirements до explicit trade-offs.
+title: "Как объяснить устройство системы"
+description: "Связать требования, данные, путь запроса и поведение при отказе."
 tags: [system-design, architecture]
 updated: 2026-10-06
 ---
 
-# Процесс System Design
+# Как объяснить устройство системы
 
-Framework полезен для нового сервиса, RFC, capacity review и интервью. Шаги итеративны: новая оценка bottleneck может изменить API или data model.
+Схема системы полезна, если по ней понятно, где принимается решение, где сохраняются данные и что увидит пользователь при отказе. Ряд прямоугольников «API → Redis → Kafka» сам по себе этого не объясняет.
 
-1. Functional requirements — actors, use cases, state transitions, edge cases и out of scope.
-2. Non-functional requirements — измеримые SLO (цель качества сервиса за заданное окно) latency/availability, durability (сохранность подтверждённых данных при заявленных отказах), consistency (согласованность наблюдаемых значений и порядка), privacy, cost, RPO/RTO.
-3. Rough capacity estimation — average/peak QPS (число запросов в секунду), payload (полезное содержимое запроса или события), storage growth, bandwidth, concurrency и skew.
-4. API — contracts, idempotency, pagination, errors, versioning и authorization boundary.
-5. Data model — source of truth (основной достоверный источник данных), keys, invariants, indexes, retention (срок хранения) и migrations.
-6. High-level architecture — минимальные components и ownership (владение данными или ответственность за ресурс); синхронные/асинхронные boundaries.
-7. Write path — validation → authoritative (владеющий достоверным состоянием) commit (фиксация результата, который считается подтверждённым) → events/cache/index; atomicity и duplicate handling.
-8. Read path — routing, cache, fan-out (раздача одного действия многим получателям), consistency и fallback.
-9. Bottlenecks — hottest key/partition, shared pool, database, network, queue, control plane.
-10. Scaling — vertical/horizontal, replication, sharding, batching, caching и rebalancing cost.
-11. Consistency — model и scope, stale-read budget, conflict resolution и cross-resource invariants.
-12. Failure scenarios — timeout ambiguity, dependency/zone loss, overload, split brain, data corruption, recovery.
-13. Observability — SLI/SLO, golden signals, tracing/log fields, audit и actionable alerts.
-14. Security — identity, authorization, encryption, secrets, abuse limits, data lifecycle (кто создаёт, останавливает и освобождает ресурс) и threat model.
-15. Trade-offs — alternatives, rejected options, assumptions, risks, cost и trigger для пересмотра.
+## Начать с одного действия
 
-## Проверка путей
+Возьмём избранное: пользователь добавляет объявление, затем открывает свой список. Уточним правила: одна связь, только свои данные, повтор не создаёт дубль, удалённое объявление скрывается. Отдельно решим, допустимо ли отставание общего счётчика.
 
-Для критичного use case нарисуйте отдельно write и read path, называя каждый durable/acknowledgement point. На каждой network boundary спросите: что будет при timeout, повторе, старом response и частичной записи?
+Эти правила задают контракт API и уникальную пару user_id,item_id в БД. Событие добавления создаётся только при настоящей вставке. Его повторная доставка всё равно возможна, поэтому получатель проверяет ID. Так технологии следуют из требуемого поведения.
 
-## Результат проектирования
+## Пройти запись и чтение
 
-Хороший design document содержит decision log, schema/API examples, capacity table, failure matrix и rollout/rollback plan. Unknowns превращаются в spike/load test, а не маскируются точными на вид числами.
+На пути записи назовите проверку права, атомарную границу, момент сохранения и момент ответа. Между каждым шагом представьте падение. После сохранения до ответа клиент не знает результат: объясните, как повтор найдёт прежнее намерение.
 
-## Связанные темы
-
-- [Requirements](fundamentals/requirements.md)
-- [Capacity estimation](fundamentals/capacity-estimation.md)
-- [Failure handling](fundamentals/failure-handling.md)
-
-## Как читать схему, а не список технологий
-
-Учебный пример: «избранное для 10 млн пользователей». Инвариант — одна связь user/item. API PUT/DELETE задаёт желаемое состояние; SQL unique constraint удерживает его при конкуренции. Шард по user_id делает список локальным; счётчик по item — асинхронная производная модель. Две одинаковые PUT не создают два события, потому что событие пишется только при новой вставке, но consumer (потребитель работы или контракта) всё равно устраняет повтор доставки.
+На пути чтения назовите источник правды, возможную копию и допустимую старость. Кэш ускоряет список, но не должен раскрыть чужие данные или отменить строгий отзыв доступа. Для каждой копии нужен способ восстановления из достоверных фактов.
 
 ```mermaid
 flowchart LR
-    C[Требование и инвариант] --> Contract[API и результат повтора]
-    Contract --> Data[Модель и атомарная граница]
-    Data --> Path[Запись, чтение и подтверждение]
-    Path --> Fault[Отказ после каждого шага]
-    Fault --> Evidence[Расчёт, измерение, проверка]
-    Evidence --> C
+    Rule[Требование и правило] --> API[API и повтор]
+    API --> Data[Данные и атомарность]
+    Data --> Path[Запись, чтение и ответ]
+    Path --> Failure[Отказ между шагами]
+    Failure --> Check[Расчёт и проверка]
+    Check --> Rule
 ```
 
-Это порядок рассуждения при проектировании, не обязательный порядок изучения базы. Любую тему можно открыть отдельно. Сильное объяснение отвечает, что произойдёт после потерянного ответа и почему система восстановится, а не только называет Kafka/Redis.
+## Проверить стоимость и границы
 
-## Источник механизма
+Оцените средний и пиковый поток, размер данных, число активных операций и популярные ключи. Укажите допущения. Тысяча запросов к одному ключу и тысяча к разным — разные ограничения. Проверьте потерю узла и догоняющую обработку, а не только обычный режим.
 
-[Google SRE: Handling Overload](https://sre.google/sre-book/handling-overload/). Числа и topology в примерах — учебные допущения, не параметры этой системы.
+Для каждого решения назовите альтернативу и цену. Размещение избранного по user_id делает список локальным, но общий счётчик объявления становится производной моделью. Меньше задержка чтения — больше работы при записи или больше памяти. Сложность должна отвечать реальному требованию.
+
+## Что оставить читателю
+
+Достаточно понятных требований, примера API и данных, схемы путей, нескольких расчётов и конкретных сценариев отказа. Неизвестный предел отмечается вопросом для измерения, а не точным выдуманным числом. Измерения и оповещения показывают выполнение пользовательского обещания.
+
+Это способ рассуждения об архитектуре, а не обязательный порядок изучения базы. Можно открыть любую нужную тему отдельно.
 
 ## Проверь себя
 
-1. Почему нельзя начинать с выбора технологий?
-2. Как проверить полноту дизайна?
+1. Почему выбор БД до правил может привести к неверному проекту?
+2. Как проверить, что схема объясняет отказ?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Без инварианта неизвестно, какие гарантии и расходы оправданы.
-2. Пройти каждый durable/сетевой шаг с timeout, duplicate и crash и объяснить видимый результат.
+1. Неизвестно, какие атомарность, свежесть и восстановление требуются; возможности технологии могут не соответствовать задаче.
+2. Пройти каждый шаг с падением, повтором и потерей ответа, называя сохранённое состояние и наблюдаемый результат.
 
 </details>
+
+## Связанные темы
+
+[Требования](fundamentals/requirements.md), [расчёт](fundamentals/capacity-estimation.md), [отказы](fundamentals/failure-handling.md).
+
+## Источник
+
+[Google SRE: перегрузка и ограничения](https://sre.google/sre-book/handling-overload/).

@@ -1,60 +1,51 @@
 ---
-title: Kafka transactions
-description: Transactional producer, read_committed и consume-transform-produce.
+title: Транзакции Kafka
+description: Как сохранить связанные изменения вместе и что делать при ошибке или неизвестном исходе COMMIT.
 tags: [messaging, kafka, transactions]
 updated: 2026-10-06
 ---
 
-# Kafka transactions
+# Транзакции Kafka
 
-Транзакция Kafka связывает выходные records и позицию прочитанных records. Получатель read_committed видит только завершённые записи; внешний SQL commit в этот набор не входит.
+Транзакция Kafka связывает несколько выходных записей и сохранённые входные позиции. Это удобно для цепочки «прочитать событие → преобразовать → отправить новое»: либо результат и продвижение позиции сохраняются вместе, либо работа повторяется.
 
-Kafka transaction атомарно помечает набор writes в нескольких topic partitions и, при processing pipeline, offsets consumer group. Она не включает внешнюю database.
+## Последовательность отправителя
 
-## Producer lifecycle
+Клиент инициализирует транзакционный producer со стабильным `transactional.id`. Затем начинает транзакцию, отправляет записи, добавляет входные **следующие** offsets и сведения группы, завершает `commitTransaction`. При отмене выход не должен стать виден `read_committed`, а сохранённые позиции не продвигаются.
 
-Producer получает стабильный уникальный `transactional.id`, вызывает initialization, затем для каждой unit of work:
+Новый экземпляр с тем же id получает новую эпоху и отстраняет старый — fencing. Это защищает от проснувшегося прежнего отправителя. Id стабилен при восстановлении, но не должен одновременно принадлежать двум независимым живым исполнителям.
 
-```text
-beginTransaction
-send records
-sendOffsetsToTransaction(offsets, group metadata)
-commitTransaction
-```
+## Что увидит читатель
 
-При ошибке transaction abort-ится и input offsets не продвигаются. Broker выдаёт producer ID/epoch; новый instance с тем же `transactional.id` fence-ит старый, что защищает от zombie producer. Поэтому ID должен быть уникален для одновременно работающего application instance/partition of work, но стабилен через restart для recovery.
+`read_uncommitted` может вернуть и записи отменённой транзакции. `read_committed` фильтрует их и не проходит через незавершённую транзакцию. Граница видимости называется **Last Stable Offset**, LSO; ниже разобрано, почему долгая транзакция задерживает даже последующие обычные записи.
 
-## Видимость записей для читателя
+`transaction.timeout.ms` ограничивает срок транзакции клиента, брокер задаёт максимальный допустимый `transaction.max.timeout.ms`. Разные ошибки требуют повтора, отмены или остановки отправителя: используйте классификацию библиотеки.
 
-`read_uncommitted` возвращает обычные записи и transactional records, включая записи отменённых транзакций. `read_committed` возвращает только committed records и ограничивает чтение Last Stable Offset; открытая долгая transaction может удерживать видимость последующих records partition.
+## Где заканчивается атомарность
 
-## Сроки ожидания и ошибки
+SQL-запись и HTTP-платёж не входят в Kafka transaction. Для PostgreSQL + отправки используйте [Outbox: сохранение намерения отправить](../transactional-outbox.md), для безопасной повторной записи — [Inbox: защита эффекта от повторов](../inbox-pattern.md).
 
-Обычная transaction должна завершиться в пределах producer `transaction.timeout.ms`, ограниченного broker `transaction.max.timeout.ms`; слишком длинная обработка повышает latency, удерживает LSO и усложняет retry. Некоторые errors retriable, другие требуют abort, пересоздание producer или остановку из-за fencing — используйте client library classification, а не retry любого exception.
-
-## Граница atomicity
-
-Сценарий «записать PostgreSQL и publish Kafka» остаётся dual write: Kafka transaction не координирует commit БД. Используйте [transactional outbox](../transactional-outbox.md), CDC или idempotent reconciliation. Аналогично external API side effect требует idempotency/inbox.
+После отмены сохранённый offset не продвинут, но локальная позиция работающего consumer могла уже уйти вперёд. Для повтора восстановите входную позицию по правилам конкретной библиотеки: сама отмена не перематывает клиента.
 
 ## LSO и остановка видимости
 
-Partition содержит обычную запись offset10, открытую transactional запись offset11 и обычную запись offset12. Пока transaction11 не завершена, read_committed ограничен LSO и не возвращает последующую 12, даже если она не transactional. После commit доступны11 и12; после abort11 пропускается,12 доступна. Offsets имеют дырки, поэтому не вычисляйте число бизнес-records как простую разность offsets.
+В одной части есть обычная запись 10, открытая транзакционная 11 и обычная 12. `read_committed` пока не возвращает 12: граница LSO остановилась перед незавершённой транзакцией. После её сохранения доступны 11 и 12, после отмены 11 пропускается, а 12 доступна. Пропуски offsets не обязательно означают потерю бизнес-записей.
 
 ```mermaid
 sequenceDiagram
-    participant C as Consumer
-    participant P as Transactional producer
+    participant C as Получатель
+    participant P as Транзакционный отправитель
     participant K as Kafka
-    C->>P: Input records
-    P->>K: Begin + output records
-    P->>K: Input next offsets + group metadata
-    P->>K: Commit
-    K-->>C: При restart продолжить с committed offsets
+    C->>P: Входные записи
+    P->>K: Начало и выходные записи
+    P->>K: Следующие входные позиции и сведения группы
+    P->>K: Сохранение транзакции
+    K-->>C: После перезапуска продолжить с сохранённой позиции
 ```
 
-transaction.timeout.ms — producer setting, broker ограничивает максимально разрешённое значение transaction.max.timeout.ms. Transaction может завершаться раньше из-за иных ошибок. Стабильный transactional.id позволяет новому instance увеличить epoch и fence старый. Два живых instances с одним ID не должны бесконечно перезапускать друг друга.
+Срок клиента `transaction.timeout.ms` ограничивается брокером через `transaction.max.timeout.ms`; другие ошибки могут завершить попытку раньше. Стабильный id позволяет новому экземпляру получить новую эпоху и отстранить старый. Два независимых живых экземпляра не должны делить один id и постоянно отстранять друг друга.
 
-После abort приложение должно снова получить/перепозиционировать input по правилам библиотеки: локальная consumer position могла уже продвинуться, отсутствие offset commit само не перематывает работающий consumer. Producer API разных Go clients различается; используйте библиотечный transaction lifecycle и классификацию ошибок.
+После отмены восстановите входную позицию по правилам Go-библиотеки. Её локальное чтение могло уйти вперёд, даже когда сохранённая позиция не менялась. API и классификация ошибок различаются между клиентами; отсутствие сохранения позиции само не перематывает работающего получателя.
 
 ## Источники
 
@@ -63,20 +54,20 @@ transaction.timeout.ms — producer setting, broker ограничивает м�
 
 ## Проверь себя
 
-1. **Зачем read_committed, если producer transactional?**
+1. **Зачем read_committed при транзакционном отправителе?**
 
    <details>
    <summary>Ответ</summary>
 
-   read_uncommitted возвращает и незавершённые/aborted записи; committed фильтрация находится у читателя.
+   Read_uncommitted может вернуть незавершённые и отменённые записи. Фильтрация выполняется на стороне читателя.
 
    </details>
 
-2. **Почему abort не всегда достаточно для повтора?**
+2. **Почему после отмены транзакции может понадобиться восстановить чтение?**
 
    <details>
    <summary>Ответ</summary>
 
-   Consumer position могла продвинуться в памяти; требуется восстановить входную позицию согласно API.
+   Локальная позиция получателя уже могла продвинуться. Несохранённый offset сам не перематывает работающий клиент.
 
    </details>

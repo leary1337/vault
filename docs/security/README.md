@@ -1,36 +1,33 @@
 ---
-title: Backend security
-description: Identity, transport, secrets и защита backend boundaries.
+title: Безопасность backend-сервиса
+description: Вход, права на объекты, пароли, токены, секреты и защищённые соединения.
 tags: [security, backend, owasp]
 updated: 2026-10-06
 ---
 
-# Backend security
+# Безопасность backend-сервиса
 
 Безопасность начинается с конкретных вопросов: кто обращается к сервису, какие действия ему разрешены и какие данные он может подменить. Здесь разобраны вход в систему, права на объекты, токены, пароли, секреты и защищённые соединения. Примеры показывают, почему успешная аутентификация ещё не разрешает чужие ресурсы.
 
-Security — набор проверяемых свойств системы, а не middleware в конце проекта. Сначала моделируют assets, actors, trust boundaries и abuse cases; затем применяют least privilege, secure defaults, defense in depth и observable failure handling.
-
-OWASP Top 10:2025 — awareness baseline, не исчерпывающий checklist. Для конкретной системы добавьте threat model, supply-chain controls, secure SDLC, incident response и отраслевые требования.
+Для каждого действия определите защищаемые данные, участников и места, где начинается доверие. Дайте процессу только необходимые права и продумайте поведение при ошибке. OWASP Top 10:2025 помогает увидеть распространённые угрозы, а конкретные проверки выбираются по устройству сервиса и требованиям к нему.
 
 
 ## Темы
 
-- [Authentication](authentication.md)
-- [Authorization](authorization.md)
-- [Backend security controls](backend-security.md)
-- [JWT](jwt.md)
-- [OAuth 2.0 и OpenID Connect](oauth2-and-oidc.md)
-- [Passwords](passwords.md)
-- [Secrets management](secrets.md)
-- [TLS](tls.md)
+- [Аутентификация: как сервис узнаёт пользователя](authentication.md)
+- [Авторизация: кому разрешено действие над объектом](authorization.md)
+- [Защита backend: почему одной проверки JSON мало](backend-security.md)
+- [JWT: что доказывает подпись токена](jwt.md)
+- [OAuth 2.0 и OpenID Connect: доступ к API и вход](oauth2-and-oidc.md)
+- [Хранение и проверка паролей](passwords.md)
+- [Секреты: выдача, использование и отзыв](secrets.md)
+- [Настройка TLS и доверия в backend](tls.md)
 
 ## Базовый принцип
 
-Authentication отвечает «кто/что предъявило credential», authorization — «разрешено ли конкретное действие над конкретным resource сейчас». Любой network caller и client-supplied field недоверенны; внутренний адрес сам по себе не identity.
+Аутентификация устанавливает личность, авторизация проверяет конкретное действие и объект. Поля запроса недоверенны; внутренний адрес сам по себе не подтверждает личность.
 
 ## Источники
 
 - [OWASP Top 10:2025](https://owasp.org/Top10/)
 - [OWASP Application Security Verification Standard](https://owasp.org/www-project-application-security-verification-standard/)
-

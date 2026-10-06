@@ -1,46 +1,29 @@
 ---
-title: Delivery semantics
-description: At-most-once, at-least-once, Kafka EOS и end-to-end idempotency.
+title: Гарантии доставки
+description: Что меняет порядок эффекта и сохранения позиции при падении получателя.
 tags: [messaging, kafka, reliability]
 updated: 2026-10-06
 ---
 
-# Delivery semantics
+# Гарантии доставки
 
-Гарантия доставки описывает конкретную границу: Kafka, базу или внешний API. Запись в Kafka ровно один раз не означает, что платёжная операция тоже прошла ровно один раз.
+Гарантия доставки отвечает на вопрос: что произойдёт, если процесс упадёт между чтением, эффектом и сохранением позиции? Название «ровно один раз» всегда нужно привязывать к конкретной границе системы.
 
-Delivery semantics описывают границу системы. Producer → broker, broker → consumer и consumer → внешняя БД могут иметь разные гарантии; слово «exactly-once» без границы почти бессодержательно.
+## Не более одного раза
 
-## At-most-once
+Получатель сохраняет позицию до эффекта. Повтор не произойдёт, но падение между шагами потеряет обработку. Это **at-most-once**: допустима потеря, не повтор. Иногда подходит для необязательных наблюдений.
 
-Offset commit до side effect или отсутствие retries исключает повтор на выбранной границе, но crash создаёт потерю. Подходит только когда loss дешевле duplicate и это явно принято.
+## Не менее одного раза
 
-## At-least-once
+Сначала эффект, затем позиция. Падение между ними повторяет запись после перезапуска. Это **at-least-once**: приложение должно выдержать повтор, например через [Inbox: защита эффекта от повторов](../inbox-pattern.md) в той же транзакции, что изменение данных.
 
-Side effect выполняется до commit offset. Crash между ними повторит record. Это распространённая и надёжная модель, если handler idempotent или deduplicate-ит stable event ID.
+## Где Kafka может связать шаги
 
-```text
-read → apply idempotently → commit offset
-```
+В обработке Kafka → Kafka транзакция связывает выходные записи и входные позиции. Получатели `read_committed` видят только завершённые записи. Это гарантия внутри согласованного механизма Kafka, не автоматическая транзакция с PostgreSQL или платёжным HTTP API.
 
-Atomic `INSERT ... ON CONFLICT` в authoritative DB, inbox table с unique `(consumer, event_id)` или version/state transition часто надёжнее distributed lock.
+Для внешнего эффекта нужны собственные средства: уникальный ключ операции, транзакционный inbox, [Outbox: сохранение намерения отправить](../transactional-outbox.md) или сверка результата. Эффект «как один раз», effectively-once, получается из повторяемой доставки и защиты эффекта от повтора.
 
-## Kafka exactly-once semantics
-
-Idempotent producer deduplicate-ит retried produce requests в producer session. Kafka transaction может атомарно публиковать records в несколько partitions и commit-ить consumed offsets. Consumers с `isolation.level=read_committed` не возвращают aborted transactional records.
-
-Это даёт exactly-once processing для consume → Kafka produce pipeline при корректной configuration. Оно не делает atomic обычную запись в PostgreSQL, HTTP call, email или платёж вместе с Kafka transaction.
-
-## Effectively-once
-
-Effectively-once — архитектурный результат: transport допускает duplicates, но idempotency key, deduplication и commutative/state-machine semantics делают наблюдаемый итог эквивалентным одному применению. Нужны:
-
-- стабильный event ID от producer, не новый ID на retry;
-- durable dedup state и retention не меньше окна повторов;
-- atomicity dedup marker с business change;
-- определённая политика поздних/переупорядоченных events.
-
-Тестируйте crash в каждой точке между read, side effect, publish и commit; happy path не доказывает semantics. Для внешних effects продолжите с [idempotency](../../backend-patterns/idempotency.md), [Transactional Outbox](../../backend-patterns/transactional-outbox.md) и [Inbox/deduplication](../inbox-pattern.md).
+Идемпотентный producer устраняет повтор пакета при сетевой ошибке. Он не распознаёт два заново созданных бизнес-события одной оплаты. Назовите стабильный идентификатор, срок хранения защиты и поведение после восстановления старой резервной копии.
 
 ## Четыре точки падения
 
@@ -50,17 +33,17 @@ Effectively-once — архитектурный результат: transport д
 | Между шагами | Повтор эффекта без dedup | Эффект потерян |
 | После обоих | Продолжение со следующей записи | Продолжение со следующей записи |
 
-Таблица предполагает успешно сохранённые commits и отсутствие отдельного reconciliation. At-least-once с inbox сохраняет запись marker и изменение одной transaction, поэтому повтор доставки не меняет итог второй раз. Если операция — increment баланса, повтор опасен; если поставить статус paid при ожидаемой версии, повтор может быть безопасен при правильной state machine.
+Таблица предполагает успешно сохранённые позиции и отсутствие отдельной сверки результатов. Inbox связывает отметку события и SQL-эффект одной транзакцией. Повтор прибавления увеличивает баланс снова; повтор установки статуса может быть безопасным, если переход и версия корректно проверены.
 
 ```mermaid
 flowchart LR
-    Input[Kafka input] --> Tx[Kafka transaction]
-    Tx --> Output[Kafka output]
-    Tx --> Offsets[Input offsets]
+    Input[Вход Kafka] --> Tx[Транзакция Kafka]
+    Tx --> Output[Выход Kafka]
+    Tx --> Offsets[Входные позиции]
     Tx -. вне атомарности .-> DB[PostgreSQL или HTTP]
 ```
 
-EOS Kafka pipeline требует transactional producer, правильного offset commit в той же transaction и read_committed downstream. Оно не обещает отсутствие повторного исполнения кода: неуспешная попытка могла выполняться, но её Kafka outputs не станут видимы committed reader. Для внешних effects границу расширяют inbox/outbox/idempotency, а не рекламное название broker.
+Гарантия Kafka → Kafka требует транзакционного отправителя, входных позиций в той же транзакции и читателя `read_committed`. Сам обработчик может выполняться повторно: скрываются незавершённые выходные записи, а не отменяются все попытки исполнения кода. Внешний эффект требует своей защиты.
 
 ## Источники
 
@@ -69,20 +52,20 @@ EOS Kafka pipeline требует transactional producer, правильного
 
 ## Проверь себя
 
-1. **EOS исключает повторный запуск обработчика?**
+1. **Исключает ли гарантия Kafka повторный запуск обработчика?**
 
    <details>
    <summary>Ответ</summary>
 
-   Нет, оно ограничивает видимый результат в поддерживаемой границе, не число попыток исполнения.
+   Нет. Она ограничивает видимые выходные записи в поддерживаемой границе, не число попыток выполнения кода.
 
    </details>
 
-2. **Почему increment требует другой защиты, чем присвоение статуса?**
+2. **Почему повтор прибавления опаснее присвоения статуса?**
 
    <details>
    <summary>Ответ</summary>
 
-   Повтор прибавляет второй раз; присвоение может быть идемпотентно при проверке перехода/версии.
+   Прибавление меняет итог ещё раз. Присвоение может быть безопасным при правильной проверке перехода и версии.
 
    </details>

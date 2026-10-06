@@ -1,6 +1,6 @@
 ---
 title: Основы баз данных
-description: Модели данных, constraints, transactions, indexes и выбор storage.
+description: Операции, правила данных, транзакции и выбор подходящей модели хранения.
 tags: [databases, fundamentals]
 created: 2024-07-31
 updated: 2026-10-06
@@ -8,49 +8,27 @@ updated: 2026-10-06
 
 # Основы баз данных
 
-База данных хранит данные и помогает нескольким клиентам менять их по общим правилам. Для объявления важно не только быстрое чтение: цена не отрицательная, владелец существует, повтор запроса не создаёт дубль.
+База данных хранит данные и разрешает нескольким клиентам читать и менять их одновременно. Для сервиса объявлений мало сохранить цену: нужно запретить отрицательную цену, не потерять изменение после перезапуска и не создать два объявления при повторе запроса.
 
-Database хранит state по определённой data model и предоставляет операции с конкретными consistency, durability и query guarantees. «SQL/NoSQL» недостаточно для выбора: сначала определите access patterns, invariants, scale, failure model и operations.
+## Сначала определить операции и правила
 
-## Модели и нагрузки
+Для выбора хранилища запишите конкретные действия: «найти объявление по id», «показать последние объявления продавца», «изменить цену». Затем назовите правила, которые должны выполняться всегда: например, один внешний номер объявления уникален внутри продавца. Такое правило называют **инвариантом**.
 
-- relational model: tables/relations, declarative queries, constraints и joins;
-- key-value: lookup/update по key с ограниченной query model;
-- document: aggregate-shaped records и secondary indexes по поддерживаемым paths;
-- graph: vertices/edges и traversal как основной access pattern;
-- columnar analytical storage: scan/aggregation большого числа rows по части columns;
-- time-series/search/vector engines: специализированные indexing/query semantics.
+В реляционной базе данные лежат в таблицах, а SQL позволяет соединять и фильтровать их. В хранилище «ключ — значение» проще всего получить значение по известному ключу. Документное хранилище удобно сохраняет связанные поля одним документом. Графовое специализируется на связях, аналитическое колоночное — на чтении отдельных колонок множества строк. Название SQL или NoSQL само по себе не определяет надёжность и скорость.
 
-Один продукт может сочетать engines, но каждое новое хранилище добавляет replication, backup, security, consistency и on-call cost. Начинайте с минимального набора, который выполняет требования.
+## Кто защищает правильность
 
-## Инварианты и ограничения
+Проверка в приложении помогает показать понятную ошибку. Ограничение базы защищает данные от всех клиентов: `NOT NULL` запрещает отсутствие значения, `CHECK` проверяет условие, `UNIQUE` запрещает повтор, внешний ключ проверяет существование связанной строки. Два клиента могут одновременно пройти проверку «такой записи нет», поэтому проверку нельзя отделять от записи без защиты от конкуренции.
 
-Schema описывает допустимое состояние: types, `NOT NULL`, unique/check/foreign-key constraints. Application validation улучшает error UX, но concurrent correctness обычно требует authoritative constraint или atomic conditional update.
+Транзакция объединяет изменения. ACID означает: либо сохраняется вся группа изменений, либо ничего; корректная логика сохраняет правила данных; параллельные операции ограничены выбранной изоляцией; подтверждённые изменения переживают оговорённые аварии. Последняя гарантия зависит от настроек журнала, диска и репликации. Транзакция может целиком сохранить ошибочный расчёт — правильную бизнес-логику она не придумывает.
 
-Normalization уменьшает update anomalies; denormalization/read model ускоряет конкретные reads ценой duplication и synchronization. Укажите owner/source of truth и reconciliation, а не просто «eventual consistency».
+## Почему быстрое чтение тоже имеет цену
 
-## Транзакции
+Индекс хранит дополнительные сведения для поиска. Он ускоряет подходящие запросы, но занимает место и обновляется при записи. Нормализация хранит факт в одном месте, чтобы не исправлять несколько копий. Денормализация намеренно создаёт копии ради чтения; тогда нужно определить, кто обновляет их и как исправляется расхождение.
 
-ACID раскрывается только вместе с engine/config/failure boundary:
+Перед разделением данных между серверами проверьте запросы, индексы, лимиты соединений и мощность одного сервера. Реплика помогает читать и переживать отказ, но ошибочное удаление тоже попадёт на неё. Для восстановления нужна независимая резервная копия и проверка восстановления. RPO — сколько последних данных допустимо потерять; RTO — сколько времени допустимо восстанавливаться.
 
-- Atomicity: изменения transaction commit-ятся как единица или abort-ятся;
-- Consistency: если transaction и constraints корректны, commit сохраняет заданные invariants;
-- Isolation: observable interleavings ограничены выбранным isolation level, не обязательно равны serial execution;
-- Durability: acknowledged commit переживает заявленные failures при конкретных WAL/replication/storage settings.
-
-Eventual consistency означает convergence replicas при прекращении новых updates и выполнении protocol assumptions; это не обещание deadline или availability при любых faults. BASE — исторический informal slogan, не точная альтернатива ACID.
-
-## Индекс и план запроса
-
-Index ускоряет поддерживаемые predicates/order, но занимает space, добавляет write/maintenance cost и не гарантирует выбор planner-ом. Проверяйте representative plans/data distribution. N+1, unbounded result и offset pagination часто остаются application problems.
-
-## Масштабирование и восстановление
-
-До sharding используйте query/index/schema improvements, caching, batching, connection bounds и vertical/read scaling, если они удовлетворяют SLO. Replication может повышать read capacity/availability, но создаёт lag/failover/conflict semantics. Sharding требует routing key, resharding, cross-shard operations и hotspot plan.
-
-Backup не равен recovery: задайте RPO/RTO, храните independent copies и регулярно восстанавливайте. Наблюдайте query latency, locks, pool waits, CPU/I/O, storage/WAL, replication lag и maintenance debt.
-
-Продолжение: [PostgreSQL](postgresql/README.md), [Redis](redis/README.md), [consistency models](../distributed-systems/consistency-models.md) и [CAP/PACELC](../distributed-systems/cap-and-pacelc.md).
+Продолжение: [PostgreSQL](postgresql/README.md), [Redis](redis/README.md), [модели согласованности](../distributed-systems/consistency-models.md) и [CAP/PACELC](../distributed-systems/cap-and-pacelc.md).
 
 ## Пример: правило при записи
 

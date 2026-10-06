@@ -10,11 +10,10 @@ updated: 2026-10-06
 
 Сеть доставляет данные между процессами, но не гарантирует успешное выполнение бизнес-операции. В статьях разбираются адреса и маршрут, соединение и поток данных, HTTP и защищённый обмен. Примеры связывают механизм с задержками, повторными запросами и диагностикой отказов.
 
-Backend-подраздел связывает connection lifecycle, pooling, DNS, TLS, multiplexing и proxies с эксплуатационными отказами.
 
 ## Темы
 
-- [Application layer](application/README.md)
-- [Networking для backend](backend/README.md)
-- [Transport layer](transport/README.md)
+- [Прикладные сетевые протоколы](application/README.md)
+- [Сети в работе backend-сервиса](backend/README.md)
+- [Транспортные протоколы](transport/README.md)
 - [Сетевой фундамент](fundamentals/README.md)

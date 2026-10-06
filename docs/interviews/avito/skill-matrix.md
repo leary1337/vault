@@ -1,6 +1,6 @@
 ---
 title: Указатель тем интервью
-description: Соответствие публичных секций Avito разделам Knowledge Base.
+description: Указатель статей по наблюдаемой проблеме и навыку объяснения на интервью.
 tags: [interviews, avito, skills]
 updated: 2026-10-06
 ---
@@ -9,28 +9,26 @@ updated: 2026-10-06
 
 Этот указатель связывает вопросы с тематическими статьями. Он помогает найти объяснение, но не является внутренней системой оценивания Avito.
 
-Это тематический указатель: он связывает типы вопросов с разделами базы. Это не внутренняя scoring rubric Avito.
-
 | Секция | Основные разделы | Что демонстрировать |
 |---|---|---|
-| Scoring/screening | [Go](../../go/README.md), [DB](../../databases/README.md), [networking](../../networking/README.md), [distributed systems](../../distributed-systems/README.md) | точный фундамент, границы гарантий, короткие production examples |
-| Programming | [Algorithms](../../algorithms/README.md) | clarification, invariant, correct code, tests, complexity |
-| Platform | [Go language](../../go/language/README.md), [concurrency](../../go/concurrency/README.md), [runtime](../../go/runtime/README.md), [backend](../../go/backend/README.md) | чтение кода, lifecycle, memory/race/error behavior, diagnostics |
-| System Design | [process](../../system-design/system-design-process.md), [PostgreSQL](../../databases/postgresql/README.md), [Redis](../../databases/redis/README.md), [Kafka](../../messaging/kafka/README.md), [observability](../../observability/README.md) | requirements, estimates, contracts, bottlenecks, failure modes, trade-offs |
-| Final | [incidents](../../production/incident-response.md), [architecture](../../backend-architecture/README.md), [архитектурный пример](../../practice/go-backend-project.md) | ownership, communication, measured outcomes, honest learning |
+| Scoring/screening | [Go](../../go/README.md), [DB](../../databases/README.md), [networking](../../networking/README.md), [distributed systems](../../distributed-systems/README.md) | точное объяснение, условия гарантии и конкретный пример |
+| Programming | [Algorithms](../../algorithms/README.md) | уточнение задачи, доказательство шагов, код, проверки и сложность |
+| Platform | [Go language](../../go/language/README.md), [concurrency](../../go/concurrency/README.md), [runtime](../../go/runtime/README.md), [backend](../../go/backend/README.md) | чтение кода, владение ресурсами, память, параллельность, ошибки и проверка |
+| System Design | [process](../../system-design/system-design-process.md), [PostgreSQL](../../databases/postgresql/README.md), [Redis](../../databases/redis/README.md), [Kafka](../../messaging/kafka/README.md), [observability](../../observability/README.md) | требования, расчёты, правила данных, ограничения и результат отказов |
+| Final | [incidents](../../production/incident-response.md), [architecture](../../backend-architecture/README.md), [архитектурный пример](../../practice/go-backend-project.md) | личная ответственность, обсуждение решений, измеренный результат и выводы |
 
 ## Самооценка
 
-Для любой выбранной темы можно проверить: удаётся ли объяснить термин, вывести mechanism, назвать ограничения и подтвердить практическим примером. Такая самооценка помогает выбрать интересующую тему и не задаёт обязательный порядок чтения.
+Для любой выбранной темы можно проверить: удаётся ли объяснить термин, объяснить механизм, назвать ограничения и подтвердить практическим примером. Такая самооценка помогает выбрать интересующую тему и не задаёт обязательный порядок чтения.
 
 ## Пример поиска по проблеме
 
 | Наблюдение | Что объяснить | Где искать |
 | --- | --- | --- |
-| Цена после сохранения старая | Replica lag и cache race | [Репликация](../../databases/postgresql/replication.md), [кэш](../../databases/redis/caching.md) |
-| Consumer повторно списал | Commit boundary и stable event ID | [Inbox](../../messaging/inbox-pattern.md) |
-| Запросы стоят при низкой CPU | Pool wait, locks, lifecycle | [Пул](../../databases/postgresql/connection-pooling.md), [locks](../../databases/postgresql/locks.md) |
-| Код работает на одном input | Invariant и контрпример | [Алгоритмы](../../algorithms/README.md) |
+| Цена после сохранения старая | отставание копии или гонка обновления кэша | [Репликация](../../databases/postgresql/replication.md), [кэш](../../databases/redis/caching.md) |
+| Consumer повторно списал | порядок сохранения результата и позиции, постоянный id события | [Inbox: защита эффекта от повторов](../../messaging/inbox-pattern.md) |
+| Запросы стоят при низкой CPU | ожидание соединения, блокировка или незакрытый ресурс | [Пул](../../databases/postgresql/connection-pooling.md), [locks](../../databases/postgresql/locks.md) |
+| Код работает на одном входе | утверждение каждого шага и контрпример | [Алгоритмы](../../algorithms/README.md) |
 
 Для глубины ответа проверьте: определение доступно новичку, механизм объясняет результат, названы условия гарантии, есть контрпример и метод проверки. «Всё понял» подтверждается новым примером без подсказки. Senior уровень требует выбирать решение под ограничения: нельзя одинаково применять кэш к описанию объявления и к факту оплаты.
 
@@ -52,6 +50,6 @@ updated: 2026-10-06
    <details>
    <summary>Ответ</summary>
 
-   Нет; реальные навыки, коммуникация и scope вакансии оцениваются отдельно.
+   Нет; реальные навыки, коммуникация и требования вакансии оцениваются отдельно.
 
    </details>

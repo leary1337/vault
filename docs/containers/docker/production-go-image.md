@@ -1,15 +1,17 @@
 ---
-title: Production Go image
-description: Multi-stage, non-root и cache-efficient Dockerfile для Go.
+title: "Рабочий образ Go-сервиса"
+description: "Образ сборки содержит Go и инструменты."
 tags: [containers, docker, go]
 updated: 2026-10-06
 ---
 
-# Production Go image
+# Рабочий образ Go-сервиса
 
-Сборочный образ содержит Go и инструменты, а рабочий — только нужный binary и окружение. Так проще воспроизводить artifact и уменьшить доступные инструменты атаки.
+Образ сборки содержит Go и инструменты. Рабочий образ получает только бинарный файл и необходимое окружение. Это уменьшает размер и число лишних программ, но требует явно проверить зависимости запуска.
 
-Ниже baseline для pure-Go static service. Пути и main package адаптируйте; в CI pin-ьте base images digest (криптографический идентификатор конкретного содержимого) после controlled update.
+## Пример Dockerfile
+
+Этот пример рассчитан на статический сервис без cgo. Пути адаптируйте под проект; базовые образы в CI фиксируйте digest после контролируемого обновления.
 
 ```dockerfile
 # syntax=docker/dockerfile:1
@@ -39,31 +41,21 @@ USER nonroot:nonroot
 ENTRYPOINT ["/service"]
 ```
 
-`.dockerignore` исключает `.git`, local binaries, coverage, docs/private config и secrets, но не `go.mod/go.sum`.
+Нужны `go.mod`, `go.sum`, пакет `./cmd/service` и подходящие зависимости. Если без зависимостей нет `go.sum`, строку `COPY` нужно изменить. `.dockerignore` должен исключать секреты, локальные результаты сборки и ненужные данные, сохраняя файлы модуля.
 
-## Decisions
+## Условия корректности
 
-- `CGO_ENABLED=0` подходит только без CGO dependencies; иначе используйте compatible runtime libc/libs и build target.
-- Distroless содержит минимальный runtime/CA bundle, но нет shell. Для debug используйте separate image/ephemeral container, не добавляйте shell в production.
-- `-s -w` уменьшает binary, но может ухудшить symbol/debug workflow; сохраните unstripped artifact отдельно, если нужен.
-- Application получает config/secrets runtime, логирует stdout, принимает `SIGTERM`, имеет HTTP/gRPC readiness (готовность к операции или к приёму новой работы в указанном контексте) endpoint и pprof только на protected listener.
-- Docker `HEALTHCHECK` необязателен, если orchestrator применяет свои probes; не дублируйте противоречивые policies.
+`CGO_ENABLED=0` подходит, если зависимости не требуют C. Иначе рабочий образ должен содержать совместимые загрузчик, libc и библиотеки. Distroless static подходит статической программе и не содержит оболочки: `docker exec sh` не сработает.
 
-## Build
+`-s -w` уменьшает файл ценой отладочной информации. При необходимости сохраните отдельный полный артефакт. Настройки и секреты передавайте при запуске; логи — в stdout. Приложение должно принимать `SIGTERM` и иметь проверку готовности. `pprof` размещайте только на защищённом слушателе. Docker `HEALTHCHECK` не обязателен, если платформа задаёт собственные проверки.
+
+## Сборка и проверка
 
 ```bash
 docker buildx build --platform linux/amd64,linux/arm64 --push -t registry/app:<immutable-tag> .
 ```
 
-Проверяйте tests, vulnerability/SBOM, non-root UID, architecture, CA/TLS, timezone semantics, read-only root и graceful stop.
-
-## Условия корректности этого Dockerfile
-
-Пример требует module с `go.mod` и `go.sum`, package `./cmd/service`, Go-совместимых dependencies и Linux target. Если зависимостей нет и go.sum отсутствует, `COPY go.mod go.sum ./` нужно адаптировать. `CGO_ENABLED=0` не подходит для зависимости, которой нужна C-библиотека.
-
-Tests в build stage выполняются на build platform; cross-compilation сама по себе не проверяет работу target binary. Для linux/arm64 нужны отдельный target smoke test и проверка соответствующих resources/credentials. Distroless static подходит статической сборке и не содержит shell: `docker exec sh` там не сработает.
-
-Запустите отдельную проверку read-only filesystem и SIGTERM:
+Проверьте архитектуру, запуск без root, сертификаты TLS, часовые пояса, уязвимости и состав компонентов. Тесты этапа сборки выполняются на его платформе. Сборка для arm64 ещё не доказывает правильный запуск на arm64: нужна проверка результата на целевой платформе.
 
 ```bash
 docker run --name go-smoke --read-only --tmpfs /tmp:rw,size=16m api-image
@@ -71,7 +63,7 @@ docker stop --timeout 30 go-smoke
 docker inspect --format '{{.State.ExitCode}} {{.State.OOMKilled}}' go-smoke
 ```
 
-Это команды отдельной smoke fixture; корректный код должен завершиться до KILL, итог зависит от программы. Не запускались в этой Windows-сессии. Если binary пишет cache/config в root filesystem, найдите и явно выделите writable location.
+Команды проверяют файловую систему только для чтения и остановку сигналом; в этой Windows-сессии они не запускались. Если программа пишет в корень, выделите конкретный доступный для записи каталог. При активном запросе остановка должна завершиться до принудительного `SIGKILL`; результат зависит от реализации сервиса.
 
 ## Источники
 
@@ -80,13 +72,13 @@ docker inspect --format '{{.State.ExitCode}} {{.State.OOMKilled}}' go-smoke
 
 ## Проверь себя
 
-1. Почему build для arm64 не заменяет test на arm64?
-2. Что сломает static image при CGO_ENABLED=1?
+1. Почему сборка arm64 не заменяет запуск и тест на arm64?
+2. Что может сломаться у программы с cgo в статическом образе?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Компиляция проверяет target code generation, а не реальное выполнение и окружение.
-2. Могут отсутствовать нужный dynamic loader/libc/libraries; runtime должен соответствовать binary.
+1. Компиляция не проверяет реальное окружение и выполнение.
+2. Могут отсутствовать динамический загрузчик или C-библиотеки.
 
 </details>

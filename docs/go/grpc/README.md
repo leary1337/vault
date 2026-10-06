@@ -1,6 +1,6 @@
 ---
-title: gRPC в Go
-description: Protobuf contracts, RPC lifecycle, streaming, interceptors и resilience.
+title: "gRPC в Go"
+description: "gRPC вызывает метод другого сервиса через сеть."
 tags:
   - go
   - grpc
@@ -9,20 +9,19 @@ updated: 2026-10-06
 
 # gRPC в Go
 
-gRPC вызывает метод другого сервиса через сеть. Protobuf задаёт контракт сообщений; context ограничивает жизнь RPC, status сообщает исход. Сначала нужен ясный контракт данных и отказов: соединение, retries и streaming не устраняют неопределённый результат сетевой команды.
+gRPC вызывает метод другого сервиса через сеть. Protobuf задаёт формат сообщений, контекст — срок и отмену, статус — категорию исхода. Сетевой отказ оставляет результат записи неизвестным: соединение и повторы сами эту проблему не устраняют.
 
-`grpc.ClientConn` — long-lived virtual connection/channel: она управляет name resolution, subchannels, connectivity и load-balancing policy и должна переиспользоваться. Default `pick_first` выбирает один доступный backend; `round_robin` и другие policies задаются service config. Не создавайте connection на каждый RPC.
+`grpc.ClientConn` — долгоживущий клиентский канал. Он управляет разрешением имени, внутренними соединениями и балансированием; переиспользуйте его. По умолчанию `pick_first` выбирает одного доступного адресата, `round_robin` и другие правила задаются конфигурацией сервиса.
 
-Retries не имеют default policy: кроме узких transparent retries, application должна явно настроить retryable methods/codes, attempt budget и idempotency. Наблюдайте call-level и attempt-level metrics.
-
+Кроме узких автоматических повторов, политика должна явно выбирать методы, коды, число попыток и защиту от повторного эффекта. Измеряйте отдельно логические вызовы и сетевые попытки.
 
 ## Темы
 
-- [gRPC deadlines и cancellation](deadlines-and-cancellation.md)
-- [gRPC errors](errors.md)
-- [gRPC interceptors](interceptors.md)
-- [gRPC streaming](streaming.md)
-- [Protobuf contracts](protobuf.md)
+- [Сроки и отмена gRPC](deadlines-and-cancellation.md)
+- [Ошибки gRPC](errors.md)
+- [Перехватчики gRPC](interceptors.md)
+- [Потоковые вызовы gRPC](streaming.md)
+- [Контракты Protobuf](protobuf.md)
 - [Unary RPC](unary.md)
 
 ## Источники

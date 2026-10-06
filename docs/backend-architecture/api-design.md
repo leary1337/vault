@@ -1,60 +1,45 @@
 ---
-title: API design
-description: Контракты HTTP/gRPC, evolution, idempotency, pagination и errors.
+title: "Проектирование API: договорённость с клиентом"
+description: "API — способ вызвать возможности сервиса из другой программы"
 tags: [architecture, api, http, grpc]
 updated: 2026-10-06
 ---
 
-# API design
+# Проектирование API: договорённость с клиентом
 
-Контракт API описывает смысл ответа, ошибки и повторов: одинаковый JSON ещё не означает одинаковое поведение.
+API — способ вызвать возможности сервиса из другой программы. Его контракт определяет не только поля JSON, но и смысл успеха, ошибок и повторов.
 
-API — долгоживущий контракт поведения, а не сериализация внутренних structs. Проектируйте resource/capability, consistency (согласованность наблюдаемых значений и порядка) и failure semantics до выбора JSON или protobuf.
+## Как это работает
 
-## Контракт
+Начните с операции: кто вправе редактировать объявление, что считается успешным изменением и что произойдёт, если одновременно редактируют двое. Сервер проверяет право, текущую версию и параметры как часть согласованного изменения. Клиент должен знать, можно ли повторить запрос после потери ответа.
 
-Определите authentication/authorization, validation, idempotency, concurrency, pagination, timeouts, status/error model и compatibility. Documented example без формальной semantics не отвечает, повторять ли request и что означает успех.
+Для HTTP метод и статус передают часть этой договорённости. Условие If-Match позволяет клиенту сказать «измени только ту версию, которую я видел». Для асинхронной задачи принятие запроса ещё не означает завершение: верните ID задачи и способ проверить результат. Ошибка содержит стабильный машинный код и безопасное пояснение, а не внутренний SQL.
 
-Для HTTP используйте методы и status codes по semantics, stable error code отдельно от человекочитаемого message, `ETag`/version для optimistic concurrency и cursor pagination для изменяемых больших наборов. Для gRPC задайте deadlines, canonical status, field presence и evolution protobuf tags.
+Совместимость проверяют поведением: новое поле иногда ломает строгий клиент, а смена рублей на копейки ломает смысл без изменения типа. Старые клиенты нужно учитывать при каждом изменении.
 
-## Развитие контракта
+## Разобранный пример
 
-Additive optional fields обычно совместимы, но новое enum value может сломать exhaustive clients. Не переиспользуйте удалённый protobuf field number/name. Изменение default, ordering, authorization или side effect может быть breaking без изменения schema.
+GET карточки возвращает ETag: "ad-42-v7". Клиент изменяет цену с If-Match: "ad-42-v7". Сервер атомарно проверяет владельца и версию при UPDATE. Если версия уже другая, отвечает 412 и не перетирает изменение. 409 относится к конфликту состояния продукта, например запрету редактировать проданное объявление; отсутствующее обязательное предусловие можно обозначить 428.
 
-Version вводят при несовместимом contract (договорённость о поведении и гарантиях), а не для каждого release. Поддерживайте deprecation window, usage telemetry (диагностические данные: метрики, логи и traces) и migration guide. Consumer-driven/contract tests проверяют критичные assumptions, но не заменяют спецификацию.
+RFC 9457 описывает application/problem+json для ошибок. Стабильный type помогает программе отличить причины, безопасное пояснение помогает человеку. Курсор списка привязывают к фильтру и устойчивому порядку, например паре (updated_at,id): одного времени недостаточно при равных отметках.
 
-## Надёжность
+## Проверь себя
 
-- mutation получает idempotency key или natural deduplication (устранение повторов по ID) contract;
-- server ограничивает body/page/batch, concurrency и rate;
-- client deadline (крайний срок завершения) меньше upstream request budget и оставляет время на cleanup;
-- retry разрешён только для классифицированной transient (временный, потенциально устранимый повтором) ошибки и retry-safe operation;
-- asynchronous acceptance отличает `accepted` от фактически завершённого outcome.
+1. Почему устаревший If-Match даёт 412?
+2. Может ли новое поле сломать старый клиент?
 
-См. [HTTP server](../go/backend/http-server.md), [gRPC](../go/grpc/README.md) и [API fundamentals](../system-design/fundamentals/api-design.md).
+<details>
+<summary>Ответы</summary>
+
+1. Не выполнено условие HTTP-запроса.
+2. Да, если клиент отвергает неизвестные поля; новые значения перечислений тоже могут нарушить его предположения.
+
+</details>
 
 ## Источники
 
 - [HTTP Semantics, RFC 9110](https://www.rfc-editor.org/rfc/rfc9110)
 - [Protocol Buffers programming practices](https://protobuf.dev/programming-guides/dos-donts/)
-
-## Механизм на примере
-
-Пример обновления: GET возвращает `ETag: "ad-42-v7"`; PATCH отправляет `If-Match: "ad-42-v7"`. Сервер выполняет условный UPDATE по версии и владельцу. Если версия изменилась, не перетирает данные и отвечает `412 Precondition Failed`. `409 Conflict` подходит для конфликта бизнес-состояния, например попытки редактирования проданного объявления. Для обязательного, но отсутствующего предусловия можно документировать `428 Precondition Required`.
-
-Для ошибок используем RFC 9457 `application/problem+json`: стабильный `type`, статус и безопасные детали, а не SQL-текст. Cursor содержит `(updated_at,id)` и привязан к фильтру; порядок времени без ID неоднозначен. Добавление поля совместимо только если старые клиенты терпят неизвестные поля; изменение единицы цены с рублей на копейки ломает поведение даже при том же типе integer.
-
-Источники: [HTTP 9110](https://www.rfc-editor.org/rfc/rfc9110.html), [Problem Details 9457](https://www.rfc-editor.org/rfc/rfc9457.html), [428 и 429](https://www.rfc-editor.org/rfc/rfc6585.html).
-
-## Проверь себя
-
-1. Почему stale If-Match возвращает 412?
-2. Почему additive field может сломать клиента?
-
-<details>
-<summary>Ориентиры для ответа</summary>
-
-1. Не выполнено HTTP-предусловие, это отличается от бизнес-конфликта.
-2. Он может отвергать неизвестные поля или новые значения enum.
-
-</details>
+- [HTTP 9110](https://www.rfc-editor.org/rfc/rfc9110.html)
+- [Problem Details 9457](https://www.rfc-editor.org/rfc/rfc9457.html)
+- [428 и 429](https://www.rfc-editor.org/rfc/rfc6585.html)

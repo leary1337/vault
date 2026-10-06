@@ -1,6 +1,6 @@
 ---
-title: HTTP client и Transport
-description: Connection pooling, timeouts, body lifecycle и безопасные retries HTTP-клиента Go.
+title: "HTTP-клиент и Transport"
+description: "HTTP-клиент отправляет запрос и возвращает ответ."
 tags:
   - go
   - http
@@ -10,11 +10,11 @@ level:
 updated: 2026-10-06
 ---
 
-# HTTP client и Transport
+# HTTP-клиент и Transport
 
-HTTP-клиент выбирает соединение, отправляет запрос и получает ответ. Transport владеет пулом соединений; caller владеет полученным response body.
+HTTP-клиент отправляет запрос и возвращает ответ. Transport управляет установлением и повторным использованием соединений. Получивший ответ код отвечает за его тело: прочитать нужные данные и закрыть `Body`.
 
-`http.Client` и `http.Transport` безопасны для concurrent use; обычно их создают один раз и переиспользуют. Пул соединений принадлежит Transport. Новый `Client` с `Transport: nil` использует общий `http.DefaultTransport`, поэтому сам по себе не уничтожает pooling. Новый отдельный Transport на каждый request лишает запросы общего пула.
+`http.Client` и `http.Transport` допускают одновременное использование; обычно их создают один раз. Новый Client с `Transport: nil` использует общий `DefaultTransport` и сам по себе не уничтожает пул. Отдельный новый Transport на каждый запрос уже лишает запросы общего пула.
 
 ```go
 transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -31,51 +31,33 @@ client := &http.Client{
 }
 ```
 
-Цифры — пример. Настройка должна следовать concurrency, upstream instances, latency SLO (целевой уровень качества, например доля ответов быстрее заданного срока) и ephemeral-port/FD budget.
+Числа учебные. Выбирайте их по параллельной нагрузке, числу адресатов, допустимой задержке и пределам портов и файловых дескрипторов.
 
-## Границы timeout
+## Границы времени
 
-- `Client.Timeout` охватывает redirects, connection, headers и чтение response body.
-- Request context позволяет caller задать меньший deadline/cause.
-- `Dialer.Timeout` — connection establishment.
-- `TLSHandshakeTimeout` — TLS handshake.
-- `ResponseHeaderTimeout` — ожидание headers после отправки request.
-- `IdleConnTimeout` — lifetime idle pooled connection, не request deadline.
+`Client.Timeout` охватывает соединение, перенаправления, заголовки и чтение тела. Контекст запроса может задать меньший срок. `Dialer.Timeout` ограничивает установление TCP, `TLSHandshakeTimeout` — TLS. `ResponseHeaderTimeout` ждёт заголовки после отправки запроса. `IdleConnTimeout` ограничивает жизнь свободного соединения в пуле, а не время запроса.
 
-Ноль часто означает отсутствие limit. Budget downstream call должен укладываться в remaining caller deadline и оставлять время на response/cleanup.
+Нулевое значение часто означает отсутствие предела. Вызов зависимости должен укладываться в оставшееся время родительского запроса, сохраняя время для ответа и завершения.
 
-## Response body и reuse
+## Тело ответа и повторное использование
 
-Caller обязан закрыть non-nil `resp.Body`. Для HTTP/1.x connection reuse обычно нужно дочитать body до EOF; если payload не нужен, прочитайте ограниченный остаток или закройте и примите потерю reuse. Никогда не читайте unlimited hostile body.
+Закрывайте непустой `resp.Body`. Для HTTP/1.x повторное использование обычно требует чтения до EOF. Если ответ не нужен, допустимо дочитать ограниченный остаток или закрыть и пожертвовать соединением. Бесконечно читать чужое тело ради пула опасно.
 
-## Pool controls
+## Настройки пула
 
-- `MaxIdleConns` — общий idle pool.
-- `MaxIdleConnsPerHost` — idle connections на host; default мал для многих high-concurrency services.
-- `MaxConnsPerHost` — dialing + active + idle; при достижении новые dials ждут.
+`MaxIdleConns` ограничивает свободные соединения суммарно, `MaxIdleConnsPerHost` — на адресата. `MaxConnsPerHost` учитывает устанавливаемые, активные и свободные; новые подключения могут ждать лимита.
 
-Слишком низкий pool создаёт queueing; слишком высокий — overload upstream и исчерпание FDs/ports. Измеряйте connect rate, reuse, wait duration, active/idle, errors и upstream saturation. `httptrace` помогает разобрать DNS/connect/TLS/first-byte phases.
+Малый пул создаёт очередь, чрезмерный перегружает зависимость и исчерпывает FD или порты. Измеряйте ожидание, создание и повторное использование. `httptrace` разделяет DNS, TCP, TLS и первый байт ответа.
 
-## Retries
+## Повторы и протоколы
 
-Transport делает только ограниченные transparent retries и не гарантирует повтор любого request. Application retry требует:
+Transport автоматически повторяет лишь ограниченный набор ситуаций. Прикладной повтор требует безопасного повторяемого эффекта либо ключа защиты от дублирования, повторно читаемого тела (`GetBody`), общего срока и числа попыток, увеличиваемой паузы со случайным разбросом. Даже `GET` безопасен только при соответствующем поведении сервера.
 
-- idempotent operation или idempotency (свойство повторной операции давать тот же эффект) key;
-- replayable body (`GetBody`);
-- общий deadline/attempt budget;
-- exponential backoff + jitter (случайный разброс задержек, чтобы клиенты не повторяли одновременно);
-- ограничение retry amplification;
-- классификацию status/error до чтения unlimited body.
-
-Даже `GET` может иметь плохой server-side implementation; idempotency — контракт системы, а не только HTTP method label.
-
-## DNS, proxy и HTTP/2
-
-Transport использует resolver и proxy configuration (`ProxyFromEnvironment` в default transport). DNS caching в основном зависит от resolver/OS; connection reuse скрывает часть lookups. HTTP/2 multiplexes streams over fewer connections, поэтому connection-count tuning и failure blast radius отличаются от HTTP/1.1.
+По умолчанию Transport учитывает `ProxyFromEnvironment`. Кеш DNS зависит от механизма разрешения имён и ОС, а открытые соединения скрывают часть новых запросов DNS. HTTP/2 передаёт несколько потоков по меньшему числу соединений: один отказ соединения может затронуть больше работы.
 
 ## Безопасно прочитать небольшой ответ
 
-Определение функции; нужны `context`, `fmt`, `io`, `net/http`:
+Нужны `context`, `fmt`, `io`, `net/http`:
 
 ```go
 func fetch(ctx context.Context, client *http.Client, url string) ([]byte, error) {
@@ -103,17 +85,17 @@ func fetch(ctx context.Context, client *http.Client, url string) ([]byte, error)
 }
 ```
 
-`Do` не возвращает error только потому, что сервер ответил `500`: статус классифицирует вызывающий. `limit+1` позволяет отличить ровно допустимый размер от превышения. Большой ответ закрывается без бесконечного drain (завершение уже принятой работы после остановки приёма); возможность переиспользования HTTP/1.x соединения здесь менее важна, чем защита памяти.
+`Do` не считает код `500` ошибкой передачи: статус проверяет приложение. Чтение `limit+1` отличает разрешённый размер от превышения. После большого ответа соединение закрывается без бесконечного дочитывания; защита памяти важнее его сохранения.
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
+    participant C as Клиент
     participant T as Transport
-    participant S as Server
-    C->>T: Do(request с context)
+    participant S as Сервер
+    C->>T: Do: запрос с контекстом
     T->>S: получить/создать соединение и отправить
-    S-->>C: headers + Body
-    C->>C: проверить status, прочитать с пределом
+    S-->>C: заголовки и тело
+    C->>C: проверить статус, прочитать с пределом
     C->>T: Body.Close после EOF
     Note over T: HTTP/1.x соединение может вернуться в пул
 ```
@@ -127,13 +109,13 @@ sequenceDiagram
 
 ## Проверь себя
 
-1. Является ли HTTP 500 ошибкой client.Do?
-2. Зачем читать limit+1, а не limit?
+1. Является ли HTTP 500 ошибкой `client.Do`?
+2. Зачем читать `limit+1`?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Обычно нет: ответ получен успешно, код статуса проверяет приложение.
-2. Чтобы обнаружить превышение; при чтении ровно limit неизвестно, есть ли ещё байты.
+1. Обычно нет: получен корректный HTTP-ответ, статус классифицирует приложение.
+2. Дополнительный байт позволяет обнаружить превышение.
 
 </details>

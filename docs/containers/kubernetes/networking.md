@@ -1,39 +1,21 @@
 ---
-title: Kubernetes networking
-description: Pod network, CNI, Service, DNS и NetworkPolicy.
+title: "Сеть Kubernetes"
+description: "Pod получает IP, Service предоставляет устойчивое имя и точку доступа, DNS разрешает имя, а сетевой плагин передаёт пакеты."
 tags: [containers, kubernetes, networking]
 updated: 2026-10-06
 ---
 
-# Kubernetes networking
+# Сеть Kubernetes
 
-Pod получает адрес, Service даёт устойчивое имя, DNS находит его, а network plugin реализует передачу пакетов. Ошибку удобнее искать по этим границам.
+Pod получает IP, Service предоставляет устойчивое имя и точку доступа, DNS разрешает имя, а сетевой плагин передаёт пакеты. Эти части выполняют разные задачи; при ошибке удобно проверять каждую границу отдельно.
 
-Kubernetes network model предполагает уникальный Pod IP и прямую Pod-to-Pod communication cluster-wide без application-level NAT между Pods. CNI/plugin реализует routing/overlay, IPAM (выделение и учёт IP-адресов), policy и observability; детали latency/MTU/encapsulation зависят от него.
+## Кто выполняет работу
 
-## Layers
+Модель Kubernetes предполагает уникальные адреса Pod и обмен между ними без изменения прикладной адресации NAT. Плагин через CNI настраивает интерфейсы и маршруты; конкретная реализация может использовать прямую маршрутизацию или туннели. От неё зависят задержка, MTU — максимальный размер пакета — и наблюдаемость.
 
-- Pod network: veth/routes/overlay or native routing;
-- Service: virtual IP + EndpointSlices, реализованные proxy/eBPF/data plane;
-- DNS: Service/Pod discovery через CoreDNS;
-- Ingress/Gateway/LoadBalancer: north-south routing;
-- NetworkPolicy: L3/L4 ingress/egress allow rules, только если CNI (интерфейс network plugin для настройки сети containers) поддерживает.
+Service и EndpointSlices задают виртуальный адрес и набор получателей; передачу реализует kube-proxy или другой механизм, например eBPF. CoreDNS помогает обнаружить сервисы. Ingress/Gateway организуют внешний вход. Версия Kubernetes 1.37 не предписывает единственный способ передачи пакетов.
 
-NetworkPolicy additive и обычно default-allow до появления selecting policy. Создайте explicit default-deny + required DNS/dependency paths и test реальным CNI. Она не понимает HTTP user authorization и не шифрует traffic.
-
-## Common failures
-
-- selector/readiness оставляет Service без endpoints;
-- DNS suffix/search `ndots` создаёт лишние queries;
-- MTU (максимальный размер пакета на участке сети) mismatch ломает большие packets/TLS при работающем ping;
-- conntrack/SNAT/ephemeral port exhaustion;
-- stale keep-alive connection после Pod termination;
-- policy блокирует DNS/return path;
-- asymmetric routing/source IP expectations.
-
-Диагностируйте по слоям: name resolution → endpoints → route/connect → TLS/application. Ephemeral debug container/network namespace полезнее установки tools в production image.
-
-## Политика ограничивает сеть, а не пользователя
+## NetworkPolicy
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -48,9 +30,17 @@ spec:
       ports: [{protocol: TCP, port: 8080}]
 ```
 
-Пример разрешает ingress к api только от gateway Pods в том же namespace, если CNI поддерживает policy. Egress этим manifest не ограничен. Разные policies суммируют разрешения: добавление правила не отменяет другие allow.
+Пример разрешает вход к `app=api` на TCP 8080 от `app=gateway` в том же пространстве, если плагин поддерживает политики. Исходящие подключения здесь не ограничены.
 
-CNI не обязан быть kube-proxy: Service traffic может реализовываться iptables/nftables/IPVS или eBPF. Kubernetes 1.37 baseline не определяет единственный data plane. Для DNS, MTU и conntrack (учёт состояния сетевых соединений) выберите средства конкретного установленного plugin; policy не проверяет HTTP права и не шифрует payload.
+Разрешения разных подходящих политик складываются: более строгая новая политика не отменяет чужое разрешение. Обычно до политики, выбирающей Pod для соответствующего направления, оно открыто. Явный запрет по умолчанию дополняйте нужными DNS и вызовами зависимостей.
+
+NetworkPolicy ограничивает сетевой путь, но не проверяет права пользователя HTTP и не шифрует данные. Испытайте правила на реальном плагине.
+
+## Типичные границы отказа
+
+Пустые адресаты Service требуют проверки меток и готовности. DNS может делать лишние запросы из-за search/`ndots`. Несовпадение MTU может ломать большие сообщения при работающем ping. Возможны исчерпание учёта соединений conntrack или временных портов, устаревшее соединение с удалённым Pod и асимметричные маршруты.
+
+Проверяйте имя → адресатов → маршрут и TCP → TLS → приложение. Диагностический контейнер в нужной сети полезнее случайных команд с другой машины.
 
 ## Источники
 
@@ -59,13 +49,13 @@ CNI не обязан быть kube-proxy: Service traffic может реали
 
 ## Проверь себя
 
-1. Суммируются ли разрешения NetworkPolicy?
-2. Контролирует ли пример egress?
+1. Отменяет ли строгая политика разрешение другой подходящей NetworkPolicy?
+2. Ограничивает ли пример исходящую сеть?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Да, selecting policies additive; одно allow не перекрывается более строгим другим.
-2. Нет, указан только Ingress; outbound требует отдельного policy.
+1. Нет: разрешения складываются.
+2. Нет: указан только `Ingress`.
 
 </details>

@@ -1,25 +1,25 @@
 ---
-title: Testing Go-сервисов
-description: Unit, integration, HTTP/DB, race, benchmark и fuzz testing.
+title: "Тестирование Go-сервисов"
+description: "Модульный тест проверяет небольшую логику; интеграционный — реальный протокол или хранилище."
 tags:
   - go
   - testing
 updated: 2026-10-06
 ---
 
-# Testing Go-сервисов
+# Тестирование Go-сервисов
 
-Тест проверяет обещанное поведение на подходящей границе. Unit проверяет небольшую логику, integration — настоящие протоколы и хранилища, race — выполненные конкурентные обращения, fuzz — свойства на новых входах. Самый дешёвый тест выбирают по ошибке, которую он должен обнаружить.
+Модульный тест проверяет небольшую логику; интеграционный — реальный протокол или хранилище. Детектор гонок наблюдает выполненные конкурентные обращения, fuzzing создаёт неожиданные входы. Выберите проверку по ошибке, которую она должна обнаружить, а не по одному общему названию «тест».
 
 ## Темы
 
-- [Benchmarks в тестах](benchmarks.md)
-- [Database testing](database-testing.md)
+- [Измерения в тестах](benchmarks.md)
+- [Тесты с БД](database-testing.md)
 - [Fuzzing](fuzzing.md)
-- [HTTP testing](http-testing.md)
-- [Integration tests](integration-tests.md)
-- [Mocks, fakes и stubs](mocks-fakes-stubs.md)
-- [Race detector в тестах](race-detector.md)
-- [Table-driven tests](table-driven-tests.md)
+- [Тесты HTTP](http-testing.md)
+- [Интеграционные тесты](integration-tests.md)
+- [Подмены зависимостей](mocks-fakes-stubs.md)
+- [Детектор гонок в тестах](race-detector.md)
+- [Табличные тесты](table-driven-tests.md)
 - [Testcontainers for Go](testcontainers.md)
-- [Unit tests](unit-tests.md)
+- [Модульные тесты](unit-tests.md)

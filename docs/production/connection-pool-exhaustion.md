@@ -1,67 +1,41 @@
 ---
-title: Connection pool exhaustion
-description: Диагностика pool wait, leaked connections, slow operations и capacity mismatch.
+title: "Закончились соединения: как читать состояние пула"
+description: "Пул хранит ограниченное число соединений к БД"
 tags: [production, connections, database]
 updated: 2026-10-06
 ---
 
-# Connection pool exhaustion
+# Закончились соединения: как читать состояние пула
 
-Исчерпание пула — все соединения заняты, новые операции ждут свободного места.
+Пул хранит ограниченное число соединений к БД. Когда все заняты, новый запрос ждёт возврата соединения, хотя сама БД может ещё иметь свободный процессор.
 
-## Симптомы
+## Как это работает
 
-Pool waiters/wait duration и acquisition timeouts растут, хотя database может не быть на пределе. Active connections равны max; latency (срок ответа) распространяется на unrelated requests.
+Соединение занято не только во время SQL. Оно остаётся у незавершённой транзакции или непрочитанного результата. Если внутри транзакции ждут внешний сервис, пул тоже продолжает быть занят.
 
-## Возможные причины
+В Go database/sql метод Stats показывает максимум, занятые и свободные соединения. WaitCount и WaitDuration накопительные: сравните два снимка за одинаковый интервал. Рост счётчика означает новые ожидания, а не число людей, ждущих прямо сейчас.
 
-Slow/blocked queries, long transactions, leaked/unclosed rows or response bodies, concurrency burst, слишком маленький pool, слишком большой fleet-wide pool для server capacity, connection churn или dependency outage.
+Проверьте закрытие Rows, обработку Rows.Err и завершение транзакции на всех ветках. На PostgreSQL pg_stat_activity помогает увидеть долгие транзакции и ожидания. Увеличение пула может перенести перегрузку из приложения в БД; сначала найдите причину удержания и общий бюджет всех экземпляров.
 
-## Что измерить
+## Разобранный пример
 
-Open/in-use/idle/max, wait count/duration, hold time, query/transaction latency, database sessions/waits/max, request concurrency, timeouts и connections across all replicas/jobs.
+Предел 20, заняты все 20, число ожиданий растёт на 200/с. CPU БД 25%, SQL обычно 30 мс, получение соединения доходит до 800 мс. Это не доказывает медленное вычисление SQL: ищите долгую транзакцию, блокировку или удержание соединения вне запроса. В pg_stat_activity состояние idle in transaction означает открытую транзакцию без текущего выполнения запроса.
 
-## Проверка гипотез
-
-Разделите acquisition wait и operation time. Если hold time вырос — ищите slow/blocked work и ownership (владение данными или ответственность за ресурс) release path. Если concurrency вырос при прежнем hold time — оцените Little's Law/capacity. Сверьте process pool max × replicas с database/proxy limit и reserved admin headroom (запас ресурса сверх обычной нагрузки).
-
-## Инструменты
-
-Driver pool statistics, traces со span (измеряемый этап trace) (измеряемый этап trace (связь этапов одной операции)) на acquire и query, goroutine stacks, `pg_stat_activity`/locks, proxy metrics и connection establishment errors.
-
-## Как уменьшить ущерб
-
-Остановить leak/blocker, rollback (отмена локальной транзакции или возврат старой версии), ограничить request/job concurrency, shed load, сократить timeout/transaction scope. Увеличивать pool только если database имеет headroom; иначе очередь просто переместится и overload усилится.
-
-## Механизм причины
-
-Определите, почему connection удерживался дольше или demand превысил рассчитанную concurrency: missing close, remote call внутри transaction, lock, traffic burst или fleet scaling mismatch.
-
-## Предотвращение
-
-Всегда close rows/body, transaction deadlines, pool wait/hold metrics, bounded (с явным конечным пределом) concurrency, fleet-wide connection budget, leak tests и reserved operational connections. См. [connection pooling](../databases/postgresql/connection-pooling.md).
-
-## Разбор с числами
-
-Учебные данные: max=20, in_use=20, wait_count растёт на 200/s; DB CPU=25%, query p99 (время, в которое укладывается 99% наблюдений)=30 ms, acquisition p99=800 ms. Гипотеза «БД вычисляет слишком медленно» не подтверждается; вероятнее connection удерживается вне SQL или запросы ждут lock. В `pg_stat_activity` видны старые `idle in transaction`, а trace — внешний call между BEGIN/COMMIT.
-
-В `database/sql` `WaitDuration` и `WaitCount` накопительные: берём разницу за интервал, не называем абсолютный counter текущим ожиданием. Проверяем `rows.Close`, чтение `rows.Err`, rollback на всех ветках, зависшие транзакции. Добавление max 20→100 при 50 репликах означает 5 000 потенциальных соединений вместо 1 000, поэтому сначала проверяем общий бюджет.
-
-Гипотеза меняется, если query duration тоже выросла и DB I/O saturated: тогда pool wait — следствие DB bottleneck. Mitigation: отключить медленный фоновой job/rollback версии, ограничить concurrency; после действия проверяем wait и user p99.
-
-## Источник механизма
-
-[Go database/sql DBStats](https://pkg.go.dev/database/sql#DBStats). Числа и topology в примерах — учебные допущения, не параметры этой системы.
+Если поднять максимум с 20 до 100 у пятидесяти экземпляров, потенциальный спрос вырастет с 1000 до 5000 соединений. Когда же выросло и время SQL, очередь пула может быть следствием перегрузки БД.
 
 ## Проверь себя
 
-1. Почему низкая DB CPU не исключает проблему?
-2. Что означает WaitCount?
+1. Зачем брать разность WaitCount?
+2. Почему дополнительные соединения способны ухудшить ситуацию?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Можно ждать locks/I/O либо удерживать idle transaction.
-2. Накопленное число ожиданий, его rate показывает текущую динамику.
+1. Это накопленный счётчик; разность показывает новые ожидания за интервал.
+2. Увеличат одновременную работу и потребление ресурсов уже перегруженной БД.
 
 </details>
+
+## Источники
+
+- [Go database/sql DBStats](https://pkg.go.dev/database/sql#DBStats)

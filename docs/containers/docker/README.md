@@ -1,24 +1,26 @@
 ---
-title: Docker
-description: Images, containers, resources, security и production Go builds.
+title: "Docker"
+description: "Образ содержит шаблон файлов и настройки."
 tags: [containers, docker]
 updated: 2026-10-06
 ---
 
 # Docker
 
-Образ — шаблон файлов и настроек, container — запущенный из него процесс с собственным окружением. На Linux containers делят ядро host; в Docker Desktop обычно используется Linux VM. Приложение должно уметь принимать config, ограничивать resources и корректно останавливаться.
+Образ содержит шаблон файлов и настройки. Контейнер — запущенные из него процессы с отдельным окружением. На Linux контейнеры делят ядро машины; Docker Desktop обычно запускает их в Linux-виртуальной машине.
+
+Статьи объясняют, как создать образ, передать настройки, открыть сеть, сохранить данные и корректно остановить приложение. Отдельно разобраны пределы ресурсов и полномочий.
 
 ## Темы
 
-- [Docker networking](networking.md)
-- [Docker resources](resources.md)
-- [Docker security](security.md)
-- [Docker storage](storage.md)
+- [Сеть Docker](networking.md)
+- [Ресурсы Docker](resources.md)
+- [Безопасность Docker](security.md)
+- [Хранение данных Docker](storage.md)
 - [Dockerfile](dockerfile.md)
-- [Images и layers](images-and-layers.md)
-- [Production Go image](production-go-image.md)
-- [Signals и PID 1](signals-and-pid1.md)
+- [Образы и слои](images-and-layers.md)
+- [Рабочий образ Go-сервиса](production-go-image.md)
+- [Сигналы и PID 1](signals-and-pid1.md)
 
 ## Источники
 

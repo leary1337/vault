@@ -1,34 +1,38 @@
 ---
-title: Algorithms
+title: Алгоритмы и структуры данных
 description: Паттерны решения задач и проверенные Go templates.
 tags: [algorithms, interviews]
 updated: 2026-10-06
 ---
 
-# Algorithms
+# Алгоритмы и структуры данных
 
-Раздел содержит алгоритмы, структуры данных и примеры на Go. Каждая тема рассматривает invariant, сложность и граничные случаи.
+Алгоритм — последовательность шагов решения, а структура данных определяет, какие действия делать удобно. Здесь объясняется не только код, но и почему можно отбросить вариант, сдвинуть границу или повторно использовать ответ.
+
+Выбирайте тему по задаче. Для диапазонов полезны [Префиксные суммы](prefix-sum.md) и [Скользящее окно](sliding-window.md), для упорядоченного поиска — [Двоичный поиск](binary-search.md), для связей — [Поиск в ширину и глубину: BFS и DFS](bfs-and-dfs.md). [Сложность алгоритмов](complexity.md) помогает оценить цену решения.
+
+Термин «инвариант» означает утверждение, которое остаётся верным на каждом шаге. Его объяснение вместе с контрпримером помогает применить алгоритм к новой задаче. [Разобранные функции Go](go-examples.md) и [учебный модуль](examples/README.md) позволяют выполнить код и проверить конкретные случаи.
 
 ## Темы
 
-- [Arrays и slices](arrays-and-slices.md)
-- [BFS и DFS](bfs-and-dfs.md)
-- [Binary search](binary-search.md)
-- [Complexity](complexity.md)
-- [Go examples](go-examples.md)
-- [Graphs](graphs.md)
-- [Greedy](greedy.md)
-- [Hash tables](hash-tables.md)
-- [Heap](heap.md)
-- [Intervals](intervals.md)
-- [Linked lists](linked-lists.md)
-- [Prefix sum](prefix-sum.md)
-- [Queue и deque](queue-and-deque.md)
-- [Sliding window](sliding-window.md)
-- [Sorting](sorting.md)
-- [Stack](stack.md)
-- [Trees](trees.md)
-- [Two pointers](two-pointers.md)
+- [Массивы и слайсы](arrays-and-slices.md)
+- [Поиск в ширину и глубину: BFS и DFS](bfs-and-dfs.md)
+- [Двоичный поиск](binary-search.md)
+- [Сложность алгоритмов](complexity.md)
+- [Разобранные функции Go](go-examples.md)
+- [Графы](graphs.md)
+- [Жадные алгоритмы](greedy.md)
+- [Хеш-таблицы](hash-tables.md)
+- [Куча и приоритеты](heap.md)
+- [Интервалы](intervals.md)
+- [Связные списки](linked-lists.md)
+- [Префиксные суммы](prefix-sum.md)
+- [Очередь и двусторонняя очередь](queue-and-deque.md)
+- [Скользящее окно](sliding-window.md)
+- [Сортировка](sorting.md)
+- [Стек](stack.md)
+- [Деревья](trees.md)
+- [Два указателя](two-pointers.md)
 
 - [Динамическое программирование](dynamic-programming.md)
 - [Перебор с возвратом](backtracking.md)

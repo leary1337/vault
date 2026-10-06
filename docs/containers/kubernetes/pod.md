@@ -1,30 +1,23 @@
 ---
-title: Pod
-description: Smallest deployable unit, shared namespaces и lifecycle.
+title: "Pod"
+description: "Pod — минимальная единица запуска Kubernetes: один или несколько тесно связанных контейнеров на одном узле."
 tags: [containers, kubernetes, pods]
 updated: 2026-10-06
 ---
 
 # Pod
 
-Pod — одна единица размещения: containers вместе запускаются на одном node и делят сеть/volumes. Для обычного API их заменяемостью управляет Deployment.
+Pod — минимальная единица запуска Kubernetes: один или несколько тесно связанных контейнеров на одном узле. У них общий IP и порты, а тома подключаются по объявленным правилам. Поэтому они могут общаться через `localhost`.
 
-Pod — smallest deployable Kubernetes unit: один или несколько tightly coupled containers с общим network namespace/IP/ports и declaratively shared volumes. Containers внутри общаются через `localhost`, но имеют отдельные process/filesystem/cgroup boundaries согласно runtime config.
+## Что общее, а что отдельно
 
-Pod не durable identity. После reschedule controller создаёт новый Pod с новым UID/IP; application state храните во внешнем store/PersistentVolume и используйте Service/DNS discovery.
+Приложение на 8080 и вспомогательный прокси на 9090 используют общую сеть. Если оба пытаются слушать одинаковый IP:8080, обычно возникает конфликт. Пространство процессов не обязательно общее: `shareProcessNamespace` включается отдельно. Файловые системы и ограничения контейнеров также зависят от настроек.
 
-## Containers
+Pod не является вечной идентичностью. При замене контроллер создаёт новый UID и IP. Важные данные храните во внешнем хранилище или PersistentVolume, а адрес обнаруживайте через Service. Даже стабильное имя StatefulSet не делает память процесса долговечной.
 
-- init containers выполняются до application containers последовательно;
-- sidecars обслуживают logging/proxy/helper lifecycle, но добавляют resources и termination ordering;
-- ephemeral containers предназначены для troubleshooting, не normal workload;
-- restart policy действует через kubelet внутри Pod, а controller заменяет failed/deleted Pods.
+## Виды контейнеров
 
-Pod phase (`Pending/Running/Succeeded/Failed/Unknown`) грубая; container states/reasons/events дают детали. `CrashLoopBackOff` — backoff отображения повторных crashes, а не root cause.
-
-## Scheduling и identity
-
-Scheduler выбирает node по requests, affinity/anti-affinity, topology spread, taints/tolerations и constraints. ServiceAccount identity/token и security context задавайте явно; не используйте default privileges без необходимости.
+Обычные init-контейнеры последовательно завершаются до запуска приложения. Вспомогательные sidecar могут жить вместе с ним и добавляют ресурсные расходы и правила остановки. Нативный sidecar может быть перезапускаемым init-контейнером с другим жизненным циклом. Временные диагностические контейнеры предназначены для расследования, а не обычной работы.
 
 ```bash
 kubectl get pod <pod> -o wide
@@ -32,23 +25,21 @@ kubectl describe pod <pod>
 kubectl get pod <pod> -o yaml
 ```
 
-Не создавайте naked Pod для долгоживущего сервиса: Deployment/StatefulSet/Job управляет replacement и rollout (замена экземпляров приложения новой версией).
+## Состояния
 
-## Один IP означает общие порты
-
-Если app и sidecar слушают `:8080`, они конфликтуют: у Pod общее пространство портов. App на 8080 и proxy на 9090 могут общаться через localhost. Process namespace по умолчанию не обязательно общий; `shareProcessNamespace` — отдельная настройка.
+Фазы `Pending`, `Running`, `Succeeded`, `Failed`, `Unknown` дают общую картину. Подробности находятся в состояниях контейнеров и событиях. `Running` не означает `Ready`: проверка готовности ещё может не пройти. `CrashLoopBackOff` показывает паузу перед очередным запуском после падений, а не объясняет их причину.
 
 ```mermaid
 flowchart TB
-    P["Pod: общий IP и ports"] --> A["app:8080"]
-    P --> S["sidecar:9090"]
-    V["volume"] --> A
+    P["Pod: общий IP и порты"] --> A["приложение:8080"]
+    P --> S["вспомогательный контейнер:9090"]
+    V["общий том"] --> A
     V --> S
 ```
 
-Running phase не означает Ready: container может ещё не пройти probe или перезапускаться. CrashLoopBackOff — отображаемое ожидание перед повторным стартом, не отдельная phase. Для StatefulSet стабильная logical identity не превращает process memory в durable storage: PersistentVolume и restore всё равно нужны.
+## Размещение и управление
 
-Обычный init container завершится до следующего; native sidecar может быть restartable init container с иным lifecycle. Проверяйте конкретную spec, не переносите последовательность обычных init на sidecars.
+Планировщик учитывает requests, правила разрешённых и предпочтительных узлов, распределение по зонам и запреты узла. Задавайте идентичность ServiceAccount и security context осознанно. Для долгоживущего сервиса нужен Deployment или StatefulSet: простой Pod сам не управляет заменой. Для конечной работы используется Job. Перезапуск контейнера kubelet и замена Pod контроллером — разные действия.
 
 ## Источники
 
@@ -57,13 +48,13 @@ Running phase не означает Ready: container может ещё не пр
 
 ## Проверь себя
 
-1. Можно ли два containers Pod слушать один и тот же IP:port?
-2. Чем Running отличается от Ready?
+1. Можно ли два контейнера Pod обычно привязать к одному IP:порту?
+2. Чем `Running` отличается от `Ready`?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Обычно нет, сеть общая; выбирайте разные ports или осознанный совместный bind.
-2. Phase показывает грубое состояние; Ready — способность принимать трафик по conditions/probes.
+1. Нет: пространство портов общее.
+2. Фаза описывает общую жизнь Pod, готовность — возможность принимать новую работу.
 
 </details>

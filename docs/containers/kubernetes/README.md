@@ -1,15 +1,17 @@
 ---
-title: Kubernetes
-description: Workloads, networking, resources и lifecycle Kubernetes 1.37.
+title: "Kubernetes"
+description: "Kubernetes поддерживает желаемое состояние: например, три экземпляра API, доступные через общее имя."
 tags: [containers, kubernetes]
 updated: 2026-10-06
 ---
 
 # Kubernetes
 
-Kubernetes поддерживает желаемое состояние: сколько экземпляров запустить, где их разместить и как направлять запросы. Это не заменяет корректный код, probes и shutdown. Baseline — Kubernetes 1.37; официальная release page на 2026-10-06 указывает patch 1.37.1. Конкретные CNI/CSI/controller и feature gates проверяют в вашем кластере.
+Kubernetes поддерживает желаемое состояние: например, три экземпляра API, доступные через общее имя. Компоненты замечают расхождение с фактическим состоянием и пытаются его устранить. Но само приложение должно правильно проверять готовность, ограничивать работу и останавливаться.
 
-![Компоненты Kubernetes: control plane и worker nodes](../../assets/kubernetes-components.svg)
+Материал опирается на Kubernetes 1.37; официальная страница релизов на 6 октября 2026 указывает 1.37.1. Реализацию сети, хранилища, контроллеров и экспериментальные настройки проверяйте в конкретном кластере.
+
+![Компоненты Kubernetes: управление и рабочие узлы](../../assets/kubernetes-components.svg)
 
 Источник: [Kubernetes contributors](https://kubernetes.io/docs/concepts/overview/components/), лицензия [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
@@ -17,28 +19,28 @@ Kubernetes поддерживает желаемое состояние: ско�
 
 | Компонент | Ответственность |
 |---|---|
-| API server | принимает запросы, проверяет доступ и сохраняет желаемое состояние |
-| etcd | хранит состояние control plane; требует backup и защиты |
-| Scheduler | выбирает node для ещё не размещённого Pod |
-| Controller manager | замечает расхождения и создаёт/изменяет объекты для нужного состояния |
-| Kubelet | на node приводит локальные containers к заданной Pod spec |
-| Container runtime | через CRI запускает и останавливает containers |
-| Network plugin / Service data plane | создаёт Pod сеть и обеспечивает маршруты/Service traffic |
+| API server | Принимает запросы, проверяет доступ и записывает желаемое состояние |
+| etcd | Хранит состояние управления; нуждается в резервных копиях и защите |
+| Планировщик | Выбирает узел для ещё не размещённого Pod |
+| Контроллеры | Замечают расхождения и меняют объекты для достижения цели |
+| Kubelet | На узле приводит контейнеры к заданному описанию Pod |
+| Среда контейнеров | Запускает и останавливает процессы через интерфейс CRI |
+| Сетевой механизм | Создаёт сеть Pod и передачу к адресатам Service |
 
-Control plane управляет состоянием, worker nodes запускают workload. Подтверждение API запроса не означает, что Pod уже Running: отдельные компоненты выполняют последующие действия асинхронно.
+Компоненты управления сохраняют и согласуют состояние; рабочие узлы выполняют приложения. Успех запроса API не означает, что Pod уже запущен: следующие действия выполняют отдельные компоненты с задержкой.
 
 ## Темы
 
-- [Autoscaling](autoscaling.md)
+- [Автоматическое масштабирование](autoscaling.md)
 - [ConfigMap и Secret](configmap-and-secret.md)
 - [Deployment](deployment.md)
-- [Graceful shutdown](graceful-shutdown.md)
+- [Корректная остановка](graceful-shutdown.md)
 - [Ingress](ingress.md)
-- [Kubernetes networking](networking.md)
-- [Kubernetes troubleshooting](troubleshooting.md)
+- [Сеть Kubernetes](networking.md)
+- [Диагностика Kubernetes](troubleshooting.md)
 - [Pod](pod.md)
-- [Probes](probes.md)
-- [Resources](resources.md)
+- [Проверки состояния](probes.md)
+- [Ресурсы](resources.md)
 - [Service](service.md)
 
 ## Источники

@@ -1,27 +1,23 @@
 ---
-title: Autoscaling
-description: HPA metrics, requests, stabilization и capacity limits.
+title: "Автоматическое масштабирование"
+description: "HorizontalPodAutoscaler (HPA) меняет число экземпляров приложения по метрикам."
 tags: [containers, kubernetes, autoscaling]
 updated: 2026-10-06
 ---
 
-# Autoscaling
+# Автоматическое масштабирование
 
-HPA изменяет количество replicas по измеренной нагрузке. Он реагирует с задержкой, поэтому минимальные replicas и защита от перегрузки нужны до scale-up.
+HorizontalPodAutoscaler (**HPA**) меняет число экземпляров приложения по метрикам. Он видит нагрузку после её появления и реагирует не мгновенно. Поэтому начальная мощность и защита от перегрузки нужны до запуска новых Pod.
 
-HorizontalPodAutoscaler периодически меняет replicas scalable workload по resource, custom или external metrics. Он реагирует после load, поэтому не заменяет baseline/headroom/backpressure.
-
-Для average CPU utilization (доля занятого ресурса за интервал) нужны CPU requests; без request metric для Pod может быть undefined. Примерная формула:
+## Как считается рекомендация
 
 ```text
 desired replicas = ceil(current replicas × current metric / target metric)
 ```
 
-Controller применяет tolerance, readiness/missing metrics и stabilization policies, поэтому результат не обязан равняться формуле мгновенно.
+Для средней загрузки CPU нужны requests: 80% от request=250m означает около 200m, а не 80% узла. Если сейчас четыре экземпляра, средняя загрузка 80%, а цель 50%, формула даёт `ceil(4×80/50)=7`.
 
-## Metric choice
-
-CPU подходит CPU-bound stateless workloads. Для queue workers лучше oldest message age/backlog per ready worker с учетом processing rate; request concurrency/latency может отражать saturation (очередь работы, которая ждёт ресурс). Memory часто плохо уменьшается после load из-за heap/cache и опасна для scale-down.
+Контроллер дополнительно учитывает допустимое отклонение, готовность, отсутствующие измерения и стабилизацию. Семь Pod не обязаны появиться сразу.
 
 ```yaml
 apiVersion: autoscaling/v2
@@ -38,21 +34,21 @@ spec:
         target: {type: Utilization, averageUtilization: 65}
 ```
 
-## Limits и failures
+## Выбор метрики
 
-Cold start + scheduling + image pull задают response lag. Scale-up может обрушить DB connection pool; total downstream concurrency ограничивайте отдельно. Scale-down должен корректно завершать work; PDB не блокирует обычное уменьшение Deployment. При недоступных metrics возможен запрет downscale; неверная external metric может вызвать колебания — задайте min/max, stabilization и alerts.
+CPU подходит для приложений, ограниченных вычислениями. Для обработчиков очереди полезны возраст старого сообщения или очередь на готовый обработчик с учётом скорости выполнения. Память может не уменьшаться сразу после спада из-за куч и кешей, поэтому плохо отражать необходимость уменьшения числа Pod.
 
-Kubernetes 1.37 добавляет beta scale-to-zero возможности для HPA при определённых metrics/feature configuration; не полагайтесь на них без проверки cluster gates/provider и cold-start SLO (цель для показателя качества сервиса).
+## Ресурсы зависимостей
 
-## Формула на конкретных данных
+Если экземпляр открывает до 50 соединений БД, рост с четырёх до семи меняет потенциальный максимум с 200 до 350. HPA не защищает БД. Ограничение общей параллельной работы нужно считать вместе с `maxReplicas`.
 
-Есть 4 replicas, текущий средний CPU utilization относительно requests — 80%, target — 50%. Формула даёт `ceil(4×80/50)=7`. Controller дополнительно применяет tolerance, отсутствующие показатели, readiness (готовность к операции или к приёму новой работы в указанном контексте) и правила стабилизации; 7 не обязано появиться мгновенно.
+Размещение, скачивание образа и холодный запуск добавляют задержку. Уменьшение числа Pod требует корректного завершения работы. PDB не блокирует обычное уменьшение Deployment. При нескольких метриках выбирается большая рекомендация; ошибка одной может запрещать уменьшение, но не обязательно рост по другой.
 
-Если каждая replica может открыть 50 DB connections, увеличение 4→7 повышает потенциальную нагрузку 200→350. HPA не защищает лимит БД: pool/concurrency budget должен учитывать maxReplicas.
+## Масштабирование до нуля
 
-Scale-to-zero в Kubernetes 1.37 beta, default enabled через `HPAScaleToZero` на apiserver и controller-manager. Требуется хотя бы object/external metric: CPU/memory нельзя измерить у нуля Pods. Не спутайте это с ручным replicas=0 и minReplicas>0, которое деактивирует обычное регулирование.
+В Kubernetes 1.37 это beta-возможность через `HPAScaleToZero`, включённую по умолчанию на apiserver и controller-manager. Нужна хотя бы object или external metric: CPU и память отсутствующих Pod измерить нельзя. Проверьте настройки платформы и допустимый холодный запуск. Ручные `replicas=0` при положительном `minReplicas` — другое поведение и могут деактивировать обычное регулирование.
 
-При нескольких metrics выбирается рекомендация большего масштаба. Ошибка получения одной metric может запрещать downscale, но не обязательно запрещает upscale по другой. PDB не является защитой от удаления Pods при scale-down Deployment.
+Задавайте минимум, максимум и стабилизацию; неправильная внешняя метрика может вызвать колебания. Проверяйте реальные условия кластера, а не только формулу.
 
 ## Источники
 
@@ -60,13 +56,13 @@ Scale-to-zero в Kubernetes 1.37 beta, default enabled через `HPAScaleToZer
 
 ## Проверь себя
 
-1. Что даёт 80% при request=250m?
-2. Почему maxReplicas считают вместе с DB pool?
+1. Что означает CPU 80% при request=250m?
+2. Почему `maxReplicas` считают вместе с пулом БД?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Около 200m CPU в среднем, а не 80% всей node.
-2. Каждая replica добавляет свой concurrency; суммарный предел может перегрузить зависимость.
+1. Примерно 200m CPU в среднем.
+2. Каждый экземпляр добавляет свою потенциальную параллельную нагрузку.
 
 </details>

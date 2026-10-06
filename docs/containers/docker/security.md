@@ -1,47 +1,37 @@
 ---
-title: Docker security
-description: Least privilege, image supply chain, secrets и runtime isolation.
+title: "Безопасность Docker"
+description: "Контейнер делит ядро с машиной."
 tags: [containers, docker, security]
 updated: 2026-10-06
 ---
 
-# Docker security
+# Безопасность Docker
 
-Container разделяет ядро с host. Защита уменьшает полномочия процесса, число доступных ресурсов и вероятность доставки вредного image.
+Контейнер делит ядро с машиной. Защита ограничивает полномочия и доступ к ресурсам, а также проверяет, откуда пришёл образ. Само слово «контейнер» не означает безопасную изоляцию от любой программы.
 
-Container делит kernel с host. Security строится слоями: trusted/minimal image, non-root/rootless where possible, capabilities/seccomp/AppArmor/SELinux, read-only filesystem, network/secret policy и patched host.
+## Образ и сборка
 
-## Image/build
+Фиксируйте и проверяйте digest базового образа, регулярно пересобирайте ради исправлений. В финальном этапе оставляйте только нужные файлы. Проверка уязвимостей требует анализа достижимости и исправлений, а не только общего числа находок. Сохраняйте состав компонентов и сведения о происхождении, при необходимости подписывайте артефакты.
 
-- pin/review base digest (криптографический идентификатор конкретного содержимого) и регулярно rebuild для patches;
-- multi-stage final image без compiler/package manager;
-- scan vulnerabilities, но triage по reachability/fix; generate SBOM/provenance/sign artifacts;
-- не передавать secrets через `ARG`, `ENV`, layer или public build cache;
-- ограничить untrusted build context и CI registry credentials.
+Не переносите секреты через `ARG`, `ENV`, слои или открытый кеш. Ограничивайте контекст сборки и полномочия CI в реестре.
 
-## Runtime
+## Полномочия запуска
 
-Запускайте explicit non-zero UID/GID; root внутри container сохраняет опасные capabilities/host attack paths. Drop all capabilities (отдельные полномочия Linux вместо всех полномочий root) и добавляйте только нужные, включите `no-new-privileges`, default/custom seccomp (ограничение разрешённых системных вызовов), read-only root и narrow mounts.
+Запускайте с явным ненулевым UID/GID. Уберите capabilities — отдельные полномочия Linux — и добавляйте только нужные. `no-new-privileges` запрещает получить дополнительные права при запуске другой программы. Seccomp ограничивает системные вызовы; AppArmor/SELinux могут задавать дополнительные политики. Корень файловой системы делайте только для чтения, монтирования — узкими.
 
-Не монтируйте Docker socket: control над daemon обычно равен control над host. Privileged container, host PID/network, host root bind mounts и device access разрушают isolation и требуют отдельного threat review.
+Docker socket позволяет управлять демоном, в том числе создавать контейнеры с доступом к машине. Его передача приложению часто равна гораздо более широким правам, чем требуются API. Режим privileged, сеть или PID машины, её корень и устройства также ослабляют изоляцию.
 
-Secrets передавайте runtime file/tmpfs/secret manager с rotation, не env, если process dump/inspect exposure неприемлем. Ограничьте egress и published ports.
-
-## Operations
-
-Patch kernel/runtime вместе с images; audit daemon/API access; rootless Docker уменьшает daemon/container privilege, но имеет compatibility limits. Resource/PID limits защищают availability, не только cost.
-
-## Минимальные полномочия обычного API
+## Пример обычного API
 
 ```bash
 docker run --user 10001:10001 --read-only   --cap-drop=ALL --security-opt=no-new-privileges   --tmpfs /tmp:rw,nosuid,nodev,size=16m api-image
 ```
 
-Пример требует, чтобы API не нуждался в root, capabilities и записи вне /tmp. Default seccomp не отключён. Такой запуск уменьшает поверхность, но не доказывает полную sandbox-безопасность.
+Пример требует, чтобы приложению не нужны были root, capabilities и запись вне `/tmp`. Стандартный seccomp не отключён. Это уменьшает доступную поверхность, но не доказывает абсолютную безопасность.
 
-Docker socket позволяет управлять daemon и создавать containers с host mounts; передача `/var/run/docker.sock` приложению обычно даёт намного больше, чем нужно для API. Для image scanning и builds отделите CI identity и допустимые registry permissions.
+Ненулевой UID внутри контейнера и rootless-демон — разные уровни защиты. Rootless уменьшает полномочия самого Docker, но имеет ограничения совместимости. Обновлять нужно и образы, и ядро, и среду запуска.
 
-Non-root UID внутри rootful container и rootless daemon — разные уровни ограничения. Секреты с short-lived credentials и rotation требуют, чтобы приложение перечитывало файл и обновляло connections.
+Секреты можно выдавать через файл или менеджер с ротацией; приложение должно перечитать их и обновить соединения. Выбор переменной окружения зависит от допустимости раскрытия через дамп или inspect. Ограничьте исходящую сеть и опубликованные порты. Лимиты памяти и числа задач защищают также доступность соседей.
 
 ## Источники
 
@@ -50,13 +40,13 @@ Non-root UID внутри rootful container и rootless daemon — разные 
 
 ## Проверь себя
 
-1. Зачем no-new-privileges вместе с non-root?
-2. Почему доступ к Docker socket опаснее обычного volume?
+1. Зачем `no-new-privileges`, если приложение уже без root?
+2. Почему Docker socket опаснее обычного тома?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Он запрещает приобретать новые privileges через exec, например setuid binary.
-2. Это управление daemon, часто позволяющее получить host-level доступ.
+1. Он запрещает приобретение новых прав, например через setuid-программу.
+2. Это интерфейс управления демоном, часто дающий путь к ресурсам всей машины.
 
 </details>

@@ -1,6 +1,6 @@
 ---
-title: HTTP testing
-description: Handler, middleware и client integration tests через httptest.
+title: "Тесты HTTP"
+description: "httptest.NewRequest и NewRecorder проверяют обработчик без настоящего слушающего сокета."
 tags:
   - go
   - testing
@@ -8,11 +8,9 @@ tags:
 updated: 2026-10-06
 ---
 
-# HTTP testing
+# Тесты HTTP
 
-Handler test проверяет HTTP-ответ без настоящего listener. Test server нужен для поведения клиента, соединений, deadlines и transport.
-
-Для isolated handler test используйте `httptest.NewRequest` и `NewRecorder`:
+`httptest.NewRequest` и `NewRecorder` проверяют обработчик без настоящего слушающего сокета. Это удобно для статуса, заголовков и смысла тела. Проверяйте декодированный JSON, а не случайный порядок его байтов.
 
 ```go
 req := httptest.NewRequest(http.MethodGet, "/users/42", nil)
@@ -26,13 +24,7 @@ if res.StatusCode != http.StatusOK {
 }
 ```
 
-Проверяйте status, headers и decoded semantic body, а не byte formatting JSON. Middleware chain и routing должны тестироваться собранным production router.
-
-Для connection/TLS/streaming behavior нужен test server. В Go 1.27 `httptest.NewTestServer(t, handler)` по умолчанию использует in-memory network, совместимую с `testing/synctest`; классические `NewServer`/`NewTLSServer` используют loopback и требуют `Close`.
-
-Не подменяйте real client retry/timeout test вызовом handler напрямую: Transport lifecycle (жизненный цикл от запуска до завершения), body close и cancellation проверяются на network boundary (граница ответственности между слоями).
-
-## Полный тест маршрута
+## Проверка маршрута
 
 ```go
 func TestUserRoute(t *testing.T) {
@@ -48,7 +40,13 @@ func TestUserRoute(t *testing.T) {
 }
 ```
 
-Нужны `fmt`, `net/http`, `net/http/httptest`, `testing`, Go 1.22+. Если вызвать handler напрямую, PathValue не устанавливается router. Поэтому для проверки маршрутизации используйте именно собранный mux. Recorder не моделирует медленного клиента и сеть: для этого используйте transport и server.
+Нужны `fmt`, `net/http`, `net/http/httptest`, `testing`, Go 1.22+. `PathValue` заполняет маршрутизатор: прямой вызов функции его обходит. Поэтому проверяйте собранный рабочий mux и цепочку middleware.
+
+## Где нужен сервер
+
+Recorder не моделирует медленного клиента, пул, TLS и сетевую отмену. Для этого нужны клиентский Transport и тестовый сервер. В Go 1.27 `httptest.NewTestServer(t, handler)` по умолчанию использует сеть в памяти, совместимую с `testing/synctest`. Классические NewServer/NewTLSServer работают через loopback и требуют Close.
+
+Сценарий повтора и таймаута клиента нельзя заменить прямым вызовом обработчика: он должен проверить закрытие тела и реальную границу передачи.
 
 ## Источники
 
@@ -57,13 +55,13 @@ func TestUserRoute(t *testing.T) {
 
 ## Проверь себя
 
-1. Почему PathValue может быть пустым в isolated handler test?
-2. Когда NewRecorder недостаточно?
+1. Почему `PathValue` пуст при прямом вызове обработчика?
+2. Когда Recorder недостаточно?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Запрос не прошёл через router, который устанавливает параметры пути.
-2. Для pooling, TLS, реальной cancellation сети и потокового поведения.
+1. Запрос не прошёл маршрутизатор, устанавливающий параметр.
+2. Для TLS, соединений, пула, сетевой отмены и потокового поведения.
 
 </details>

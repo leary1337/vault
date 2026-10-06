@@ -1,33 +1,27 @@
 ---
 title: Apache Kafka
-description: Архитектура, delivery semantics и эксплуатация Apache Kafka.
+description: Потоки сообщений, повторы, границы сохранности и эксплуатация Kafka.
 tags: [messaging, kafka]
 updated: 2026-10-06
 ---
 
 # Apache Kafka
 
-Раздел описывает Apache Kafka 4.3.1: архитектуру KRaft, хранение записей, доставку и эксплуатацию.
+Kafka хранит записи для одного или нескольких независимых получателей. В разделе рассматривается версия 4.3.1: устройство KRaft, поток сообщений, повторы и эксплуатация.
 
-Главные границы гарантий:
+[Архитектура](architecture.md) показывает роли серверов. [Потоки, части и копии Kafka](topics-partitions-replication.md) объясняют порядок и сохранность. [Отправитель Kafka](producer.md) и [Получатель Kafka](consumer.md) разбирают подтверждения и позиции. [Гарантии доставки](delivery-semantics.md) объясняют результат падения между шагами.
 
-- ordering существует только внутри partition;
-- replication не исключает потерю при любой configuration/failure;
-- idempotent producer устраняет определённый класс retry duplicates, но не делает обработчик exactly-once;
-- offset commit отмечает позицию, а не факт внешнего side effect.
-
-Для новичка: broker — сервер данных; partition — упорядоченный журнал одного участка topic; offset — позиция записи; ISR — текущие синхронизированные replicas; controller — процесс управления метаданными.
-
+Порядок гарантирован внутри одной части, а не всего кластера. Защита отправителя от сетевого повтора не предотвращает второе списание в PostgreSQL. Позиция чтения тоже не является подтверждением внешней операции. Эти различия подробно разобраны на примерах.
 
 ## Темы
 
-- [Consumer groups](consumer-groups.md)
-- [Delivery semantics](delivery-semantics.md)
-- [Kafka consumer](consumer.md)
-- [Kafka producer](producer.md)
-- [Kafka transactions](transactions.md)
+- [Группы получателей](consumer-groups.md)
+- [Гарантии доставки](delivery-semantics.md)
+- [Получатель Kafka](consumer.md)
+- [Отправитель Kafka](producer.md)
+- [Транзакции Kafka](transactions.md)
 - [KRaft](kraft.md)
-- [Topics, partitions и replication](topics-partitions-replication.md)
+- [Потоки, части и копии Kafka](topics-partitions-replication.md)
 - [Архитектура Kafka](architecture.md)
 - [Эксплуатация Kafka](operations.md)
 

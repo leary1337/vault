@@ -1,15 +1,13 @@
 ---
-title: Docker networking
-description: Network namespaces, bridge, DNS, ports и host mode.
+title: "Сеть Docker"
+description: "Linux-контейнер обычно имеет собственное сетевое пространство с интерфейсами и маршрутами."
 tags: [containers, docker, networking]
 updated: 2026-10-06
 ---
 
-# Docker networking
+# Сеть Docker
 
-Container обычно имеет собственную сеть. Published port связывает порт host с портом container, а Docker DNS помогает containers общей сети найти друг друга.
-
-Linux container обычно имеет network namespace с interfaces/routes. User-defined bridge подключает containers виртуальной сетью и предоставляет name resolution; опубликованный port на host направляет traffic к container port.
+Linux-контейнер обычно имеет собственное сетевое пространство с интерфейсами и маршрутами. Пользовательская bridge-сеть связывает контейнеры и разрешает их имена. Публикация порта связывает адрес машины с портом контейнера.
 
 ```bash
 docker network create app-net
@@ -17,13 +15,28 @@ docker run --network app-net --name api api-image
 docker run -p 127.0.0.1:8080:8080 api-image
 ```
 
-`EXPOSE 8080` не публикует port. `-p 8080:8080` без host IP часто слушает все host interfaces — проверьте firewall/exposure. Container должен слушать `0.0.0.0`/`::`, не только loopback собственного namespace.
+`EXPOSE 8080` только документирует порт. `-p 8080:8080` без адреса машины часто публикует его на всех интерфейсах: проверьте доступность и межсетевой экран.
 
-На user-defined network обращайтесь к service name и container port, а не published host port. IP container ephemeral. DNS caching client/runtime может удерживать старый address; connection pool должен обновляться через reconnect/discovery.
+## Два адреса прослушивания
 
-Default bridge, user-defined bridge, host, none и overlay имеют разные isolation/routing. Host mode убирает отдельный network namespace path/port mapping и повышает collision/exposure; нужен редко.
+```bash
+docker run --rm -p 127.0.0.1:8080:8080 api-image
+```
 
-## Diagnostics
+Здесь машина принимает только на своём loopback. Но приложение внутри контейнера должно слушать `:8080` или `0.0.0.0:8080`. Если оно слушает только свой `127.0.0.1`, перенаправленные пакеты на интерфейс контейнера не найдут слушателя. Это две разные сети.
+
+```mermaid
+flowchart LR
+    H["машина: 127.0.0.1:8080"] --> P["опубликованный порт"]
+    P --> C["интерфейс контейнера:8080"]
+    C --> A["приложение слушает все интерфейсы"]
+```
+
+В одной пользовательской сети другой контейнер обращается к `http://api:8080`: это имя сервиса и внутренний порт, а не опубликованный порт машины. IP после замены контейнера может измениться; не используйте его как постоянную настройку. Старый адрес также могут удерживать кеш DNS и уже открытые соединения.
+
+## Режимы и диагностика
+
+Bridge, host, none и overlay задают разные маршруты и степень изоляции. Host-режим убирает отдельное сетевое пространство и обычное сопоставление портов, увеличивая риск конфликтов. В Docker Desktop путь дополнительно проходит через виртуальную машину, поэтому детали Linux нельзя переносить автоматически.
 
 ```bash
 docker network inspect app-net
@@ -32,24 +45,7 @@ docker exec <container> cat /etc/resolv.conf
 nsenter -t <host-pid> -n ss -lntp
 ```
 
-Различайте application listen, container route/DNS, host publish/firewall и upstream load balancer. Не устанавливайте debug tools в production image только ради incident: используйте dedicated debug container/namespace access.
-
-## Две независимые настройки доступности
-
-```bash
-docker run --rm -p 127.0.0.1:8080:8080 api-image
-```
-
-Host слушает только loopback, но приложение **внутри** container должно слушать `:8080`/`0.0.0.0:8080`. Если оно слушает `127.0.0.1:8080` внутри своего namespace, перенаправленный traffic не попадёт на этот endpoint. В Docker Desktop host/container networking дополнительно проходит через VM, поэтому не переносите Linux-specific детали на него без проверки.
-
-```mermaid
-flowchart LR
-    H["host 127.0.0.1:8080"] --> P["published port"]
-    P --> C["container interface:8080"]
-    C --> A["app слушает все interfaces"]
-```
-
-Не используйте IP container как постоянную конфигурацию: после replacement он меняется. В user-defined bridge вызов `http://api:8080` использует имя и внутренний port, без host publish.
+Разделите проблему на слушатель приложения, сеть и DNS контейнера, публикацию и фильтрацию машины, внешний балансировщик. Для диагностики используйте отдельное окружение, а не добавляйте все инструменты в рабочий образ.
 
 ## Источники
 
@@ -57,13 +53,13 @@ flowchart LR
 
 ## Проверь себя
 
-1. Публикует ли EXPOSE порт?
-2. Почему host mapping не исправляет listen на container localhost?
+1. Публикует ли `EXPOSE` порт?
+2. Почему публикация не исправляет слушатель на localhost контейнера?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Нет, это metadata; доступ задают run/network settings.
-2. Это другая loopback-сеть; app должна принимать на container interface.
+1. Нет: доступ задаётся запуском и сетью.
+2. Пакеты приходят на интерфейс контейнера, а его loopback — отдельный адрес.
 
 </details>

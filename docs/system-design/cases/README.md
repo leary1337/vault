@@ -1,25 +1,25 @@
 ---
-title: System Design cases
-description: Разборы проектирования с альтернативами и trade-offs.
+title: "Примеры устройства систем"
+description: "Разобраны чат, объявления, лента, файлы и другие сервисы"
 tags: [system-design, cases]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
-# System Design cases
+# Примеры устройства систем
 
-Cases применяют [общий процесс](../system-design-process.md), но не выдают одну архитектуру за универсальную. Для каждого сначала уточните scale, SLO, consistency и abuse model: другой ответ меняет storage и topology.
+Разобраны чат, объявления, лента, файлы и другие сервисы. Числа учебные: они нужны, чтобы увидеть дорогой ресурс и проверить логику, а не скопировать настройки.
 
-Полезное упражнение: до чтения решения выпишите API, source of truth, read/write path и три failure scenarios; затем сравните trade-offs.
+Открывайте нужную тему по вопросу. В статье сначала разберите механизм и пример, затем ответьте на «Проверь себя» до раскрытия ответа.
 
 ## Темы
 
-- [Chat](chat.md)
-- [Classifieds ads](classifieds-ads.md)
-- [Distributed rate limiter](rate-limiter.md)
-- [Favorites](favorites.md)
-- [Feed](feed.md)
-- [File storage](file-storage.md)
-- [Notification service](notification-service.md)
-- [Search autocomplete](search-autocomplete.md)
-- [URL shortener](url-shortener.md)
-- [View counter](view-counter.md)
+- [Чат: запись, доставка и восстановление](chat.md)
+- [Сервис объявлений: публикация и поиск](classifieds-ads.md)
+- [Общий ограничитель запросов](rate-limiter.md)
+- [Избранное: связь, список и счётчик](favorites.md)
+- [Лента: подготовить кандидатов и проверить доступ](feed.md)
+- [Файловое хранилище: загрузка ещё не публикация](file-storage.md)
+- [Уведомления: принято, отправлено и доставлено](notification-service.md)
+- [Поисковые подсказки: быстрый ответ на короткий префикс](search-autocomplete.md)
+- [Короткие ссылки: создание, переход и отзыв](url-shortener.md)
+- [Счётчик просмотров: что считать и как пережить повтор](view-counter.md)

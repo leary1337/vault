@@ -1,6 +1,6 @@
 ---
-title: Context
-description: Cancellation, deadlines, causes и request-scoped values в Go.
+title: "Контекст и отмена"
+description: "Контекст сообщает работе, что её результат больше не нужно ждать, и переносит предельный срок."
 tags:
   - go
   - concurrency
@@ -8,22 +8,13 @@ tags:
 updated: 2026-10-06
 ---
 
-# Context
+# Контекст и отмена
 
-Context сообщает работе, что ждать уже не нужно, и задаёт срок. Он не убивает goroutine: выполняемая функция должна проверить сигнал и прекратить работу.
-
-`context.Context` переносит cancellation signal, deadline и request-scoped values через call tree. Он не является универсальным контейнером зависимостей или mutable state.
+Контекст сообщает работе, что её результат больше не нужно ждать, и переносит предельный срок. Он не убивает горутину: код должен заметить отмену и завершиться. `context.Context` передаётся по дереву вызовов, а не хранит произвольные зависимости или изменяемое состояние.
 
 ## API
 
-- `Background` — корень для main/init/test top-level work.
-- `TODO` — временная отметка, когда правильный parent ещё не определён.
-- `WithCancel`, `WithTimeout`, `WithDeadline` — child context + cancel function.
-- `WithCancelCause`, `WithDeadlineCause`, `WithTimeoutCause` и `Cause` — cancellation с диагностической причиной.
-- `AfterFunc` — запускает function после cancellation.
-- `WithoutCancel` — отделяет child от parent cancellation; использовать только при явном новом lifecycle (жизненный цикл от запуска до завершения).
-
-Всегда вызывайте возвращённый cancel, даже если ожидаете timeout: это освобождает связанные ресурсы раньше.
+`Background` создаёт корень, `TODO` отмечает пока не выбранного родителя. `WithCancel`, `WithTimeout`, `WithDeadline` создают дочерний контекст и функцию отмены. Всегда вызывайте её: даже при ожидаемом таймауте ресурсы можно освободить раньше.
 
 ```go
 ctx, cancel := context.WithTimeout(parent, 2*time.Second)
@@ -34,33 +25,21 @@ if err := repository.Load(ctx, id); err != nil {
 }
 ```
 
-## Правила API
+Дочерняя отмена не отменяет родителя, но родительская идёт детям. Дочерний срок не продлевает срок родителя. Ошибку одной параллельной задачи нужно явно превращать в отмену остальных, например через `errgroup.WithContext`.
 
-- `ctx` — первый параметр, обычно с именем `ctx`.
-- Не храните Context в struct без специальной причины.
-- Не передавайте nil; используйте `context.TODO`, если parent неизвестен.
-- Values — только для request-scoped data, проходящей process/API boundary (граница ответственности между слоями): trace ID, auth principal. Не храните config, logger как dependency, optional arguments или mutable accumulator.
-- Key должен быть private comparable type, чтобы избежать collisions.
+## Правила передачи
 
-## Propagation
+Контекст обычно первый параметр `ctx`; не передавайте `nil` и не храните его в структуре без специальной причины. Values подходят для данных запроса, которые проходят через границы вызовов: идентификатор трассы, проверенная идентичность. Для ключа используйте свой сравнимый тип. Настройки, обязательные зависимости и изменяемый накопитель передавайте явно.
 
-HTTP server отменяет `Request.Context` при disconnect/завершении обработки; client request принимает context через `NewRequestWithContext`. `database/sql` методы `QueryContext`/`ExecContext` передают cancellation driver-у, но скорость фактической отмены зависит от driver/protocol. gRPC переносит deadline/cancellation через RPC context.
+## Связь с вводом-выводом
 
-Kafka message не получает Context «автоматически»: trace/correlation metadata нужно сериализовать в headers, а processing lifecycle связать с consumer shutdown/rebalance.
+HTTP связывает `Request.Context` с жизнью запроса; клиент принимает его через `NewRequestWithContext`. SQL-методы `QueryContext` и `ExecContext` передают отмену драйверу, но скорость реакции зависит от протокола. gRPC передаёт срок и отмену RPC. Сообщение Kafka не получает контекст автоматически: нужные идентификаторы записываются в заголовки, а обработка связана с остановкой потребителя.
 
-Продолжение по boundaries: [HTTP request context](../backend/request-context.md), [SQL cancellation](../testing/database-testing.md), [gRPC deadlines](../grpc/deadlines-and-cancellation.md) и [OpenTelemetry propagation](../../observability/opentelemetry.md).
+См. [HTTP](../backend/request-context.md), [SQL](../testing/database-testing.md), [gRPC](../grpc/deadlines-and-cancellation.md) и [передачу трассы](../../observability/opentelemetry.md).
 
-## `WithoutCancel`
+## Причина отмены
 
-Detached work часто становится leak. Если audit/log delivery должна пережить request, передайте её owned bounded (с явным пределом времени, количества или размера) worker-у с собственным shutdown context, queue limit и observability. `WithoutCancel` не создаёт owner и не добавляет timeout.
-
-## Cancellation cause
-
-`ctx.Err()` возвращает только `Canceled` или `DeadlineExceeded`. `context.Cause(ctx)` даёт сохранённую domain/operational cause. Не отправляйте эту причину внешнему клиенту без sanitization.
-
-## Причина отмены и обычная ошибка
-
-Фрагмент внутри `main`, нужны `context`, `errors`, `fmt`:
+`ctx.Err()` даёт `Canceled` или `DeadlineExceeded`. Варианты `WithCancelCause`, `WithDeadlineCause`, `WithTimeoutCause` сохраняют дополнительную причину, доступную через `context.Cause`. Внешнему клиенту её показывают только после проверки безопасного содержания.
 
 ```go
 ctx, cancel := context.WithCancelCause(context.Background())
@@ -69,9 +48,11 @@ fmt.Println(ctx.Err())          // context canceled
 fmt.Println(context.Cause(ctx)) // owner stopped
 ```
 
-Отмена родителя идёт детям, а отмена ребёнка не отменяет родителя. Несколько независимых операций можно связать одним родительским context, но ошибку одной операции нужно явно превратить в отмену остальных, например через `errgroup.WithContext`.
+## Работа после запроса
 
-`WithoutCancel` сохраняет values, но убирает deadline, Done и ошибку отмены родителя. Для фоновой задачи добавьте отдельный timeout и владельца. Вызов возвращённого stop из `AfterFunc` не ждёт уже начавшуюся функцию: совместное изменение состояния всё ещё требует синхронизации.
+`WithoutCancel` сохраняет values, но убирает родительские срок, `Done` и ошибку. Он не добавляет нового владельца или таймаут. Если аудит должен пережить запрос, передайте его отдельному обработчику с ограниченной очередью и собственной остановкой.
+
+`AfterFunc` запускает функцию после отмены. Возвращённый `stop` не ждёт уже начавшуюся функцию: совместный доступ к данным требует своей синхронизации.
 
 ## Источники
 
@@ -81,13 +62,13 @@ fmt.Println(context.Cause(ctx)) // owner stopped
 
 ## Проверь себя
 
-1. Остановит ли cancel бесконечный цикл без проверки context?
-2. Может ли child timeout продлить parent deadline?
+1. Остановит ли `cancel` бесконечный цикл без проверки контекста?
+2. Может ли дочерний таймаут продлить родительский срок?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Нет, отмена кооперативная; код должен заметить сигнал.
-2. Нет: ребёнок отменится вместе с родителем, даже если его собственный срок позже.
+1. Нет: отмена требует участия кода.
+2. Нет: ребёнок отменится с родителем.
 
 </details>

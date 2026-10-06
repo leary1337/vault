@@ -1,30 +1,32 @@
 ---
-title: Основы System Design
-description: Небольшие связанные страницы по ключевым решениям архитектуры.
+title: "Основы проектирования"
+description: "Как превратить запрос продукта в измеримые требования, модель данных и понятные гарантии"
 tags: [system-design, fundamentals]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
-# Основы System Design
+# Основы проектирования
 
-Страницы здесь дают design-level вопросы и ссылаются на углублённые разделы по [distributed systems](../../distributed-systems/README.md), [databases](../../databases/README.md) и [backend patterns](../../backend-patterns/README.md). Они не дублируют полные operational guides.
+Как превратить запрос продукта в измеримые требования, модель данных и понятные гарантии. В каждой теме есть расчёт или сценарий, показывающий цену решения.
+
+Открывайте нужную тему по вопросу. В статье сначала разберите механизм и пример, затем ответьте на «Проверь себя» до раскрытия ответа.
 
 ## Темы
 
 - [API design](api-design.md)
-- [Backpressure в System Design](backpressure.md)
-- [Caching в System Design](caching.md)
-- [Capacity estimation](capacity-estimation.md)
-- [Consistency в System Design](consistency.md)
-- [Data modeling](data-modeling.md)
-- [Failure handling](failure-handling.md)
-- [Functional requirements](requirements.md)
-- [Idempotency в System Design](idempotency.md)
-- [Load balancing](load-balancing.md)
-- [Non-functional requirements](non-functional-requirements.md)
-- [Observability в System Design](observability.md)
-- [Rate limiting в System Design](rate-limiting.md)
-- [Replication в System Design](replication.md)
-- [Retries в System Design](retries.md)
-- [Security в System Design](security.md)
-- [Sharding в System Design](sharding.md)
+- [Поток работы и обратное давление](backpressure.md)
+- [Кэширование: какую копию и насколько долго можно читать](caching.md)
+- [Оценка нагрузки и ресурсов](capacity-estimation.md)
+- [Согласованность при проектировании](consistency.md)
+- [Модель данных: от правил к таблицам](data-modeling.md)
+- [Обработка отказов: сохранить правильность и восстановиться](failure-handling.md)
+- [Требования: что система должна делать](requirements.md)
+- [Защита API от повторного эффекта](idempotency.md)
+- [Балансировка: как распределять запросы](load-balancing.md)
+- [Требования к качеству: скорость, сохранность и восстановление](non-functional-requirements.md)
+- [Наблюдаемость как часть проекта](observability.md)
+- [Квоты и ограничение частоты в проекте](rate-limiting.md)
+- [Копии данных: какую потерю и задержку допускаем](replication.md)
+- [Повторы как часть архитектуры](retries.md)
+- [Безопасность при проектировании](security.md)
+- [Разделение данных: выбор ключа и цена переноса](sharding.md)

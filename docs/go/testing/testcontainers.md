@@ -1,6 +1,6 @@
 ---
-title: Testcontainers for Go
-description: Управление disposable dependencies в integration tests.
+title: "Testcontainers for Go"
+description: "Testcontainers — сторонняя библиотека, которая запускает настоящую зависимость в одноразовом контейнере из Go-теста."
 tags:
   - go
   - testing
@@ -10,9 +10,7 @@ updated: 2026-10-06
 
 # Testcontainers for Go
 
-Testcontainers запускает настоящую зависимость в одноразовом контейнере. Тест получает близкое к эксплуатации поведение без общей постоянной БД.
-
-Testcontainers запускает real dependency image из Go test. Это third-party library, не standard library. Используйте module-specific `Run` API и pinned image tag, а не `latest`.
+Testcontainers — сторонняя библиотека, которая запускает настоящую зависимость в одноразовом контейнере из Go-теста. Это позволяет проверить БД без постоянного общего экземпляра.
 
 ```go
 ctr, err := postgres.Run(ctx,
@@ -28,13 +26,9 @@ if err != nil {
 testcontainers.CleanupContainer(t, ctr)
 ```
 
-После readiness (готовность принимать новую работу) примените production migrations. Container start дорогой: один suite container + isolated schemas/snapshots может ускорить tests, но не допускайте state leakage. В CI учитывайте Docker availability, image registry failures, architecture и logs/artifacts.
+Используйте актуальный `Run` API выбранного модуля, а не устаревший `RunContainer`. Фиксируйте библиотеку и образ; `latest` может незаметно изменить два одинаковых запуска CI.
 
-Не используйте deprecated `RunContainer`; API/version сверяйте при upgrade dependency.
-
-## Ждать готовность, затем проверять протокол
-
-После фрагмента запуска выше:
+## От запуска до работы БД
 
 ```go
 dsn, err := ctr.ConnectionString(ctx, "sslmode=disable")
@@ -52,9 +46,13 @@ if err := db.PingContext(ctx); err != nil {
 }
 ```
 
-Это фрагмент test: `driverName` должен соответствовать импортированному драйверу, нужен `database/sql`. Пароль test-only и отключённый TLS относятся к изолированной fixture (подготовленные тестовые данные и зависимости). Container running не значит PostgreSQL ready; wait strategy и Ping проверяют разные ступени.
+`driverName` должен совпасть с импортированным драйвером; нужен `database/sql`. Пароль и отключённый TLS — только для изолированных тестовых данных. Статус контейнера running ещё не означает готовность PostgreSQL: ожидание и Ping проверяют разные стадии. Затем примените рабочие миграции.
 
-`postgres:17-alpine` здесь выбранная major для совместимости теста, а не заявление о последней версии PostgreSQL. Для воспроизводимости закрепите конкретный patch/digest и версию Go module; проверяйте upgrades как отдельное изменение. Docker недоступен — integration suite должен сообщить ограничение, а не молча выдать зелёную проверку.
+`postgres:17-alpine` здесь выбран для совместимости примера, а не назван последней версией. Для воспроизводимости нужен patch или digest. Обновления проверяйте отдельно.
+
+## Стоимость и CI
+
+Один контейнер на группу с отдельными схемами может ускорить тесты, если данные не протекают между случаями. Учтите Docker, доступ к реестру, архитектуру и логи. Недоступная инфраструктура должна быть явно отражена: пропущенный интеграционный тест нельзя выдавать за успешную проверку.
 
 ## Источники
 
@@ -63,13 +61,13 @@ if err := db.PingContext(ctx); err != nil {
 
 ## Проверь себя
 
-1. Почему image latest плох для CI?
-2. Достаточно ли факта running?
+1. Почему `latest` неудобен для CI?
+2. Достаточно ли состояния running?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Он может незаметно сменить поведение между двумя одинаковыми commits.
-2. Нет: сервис может ещё инициализироваться; нужны readiness и protocol check.
+1. Содержимое может измениться без изменения теста.
+2. Нет: сервис ещё может запускаться; нужна проверка готовности и протокола.
 
 </details>

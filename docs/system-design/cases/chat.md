@@ -1,43 +1,25 @@
 ---
-title: Chat
-description: Realtime delivery, per-conversation order, sync и presence.
+title: "Чат: запись, доставка и восстановление"
+description: "Отправить сообщение и показать его получателю — разные этапы"
 tags: [system-design, cases, realtime]
 updated: 2026-10-06
 ---
 
-# Chat
+# Чат: запись, доставка и восстановление
 
-## Требования
+Отправить сообщение и показать его получателю — разные этапы. Надёжный чат сначала сохраняет сообщение, а затем доставляет по текущим соединениям и позволяет получить пропущенное после отключения.
 
-1:1/group messages, realtime online delivery, offline sync, delivery/read receipts, edit/delete, attachments и push. Уточнить member count, per-conversation ordering, retention/search, multi-device и encryption.
+## Как устроено
 
-## API и модель
+Клиент создаёт устойчивый ID сообщения. Сервер проверяет участие в беседе, сохраняет сообщение с номером порядка и только затем подтверждает. Повтор с тем же ID возвращает прежнее сообщение. WebSocket переносит данные по живому соединению, но не хранит историю.
 
-Client создаёт stable `client_message_id`; server возвращает `(conversation_id, sequence/message_id)`. Membership/role и message log — authoritative (владеющий достоверным состоянием). Cursor sync запрашивает records после last acknowledged sequence, а не полагается только на WebSocket.
+Порядок обычно нужен внутри беседы, а не между всеми беседами мира. Получатель хранит последнюю непрерывно применённую позицию и при пропуске запрашивает продолжение журнала. «Записано», «доставлено устройству» и «прочитано» — разные статусы.
 
-## Путь записи
-
-Gateway authenticates persistent connection → chat service checks membership/idempotency → assigns order в conversation shard/partition → durable append → ack sender → fan-out (раздача одного действия многим получателям) event online gateways, unread projection (производная модель для чтения) и push service. Ack до durable append рискует потерять message.
-
-## Ordering и sharding
-
-Total global order не нужен; one ordered writer/partition per conversation проще. Hot giant room ограничивает partition (раздел журнала или данных; при network partition — разрыв связи): можно shard (часть данных у отдельного владельца) fan-out/read delivery, сохраняя message sequence у authority. Client reorders/buffers по sequence и умеет gap sync.
-
-## Presence и fan-out
-
-Presence — ephemeral lease/heartbeat и допускает staleness; не храните её как durable truth. Online connection registry маршрутизирует по user/device. Для малых groups fan-out on write; для огромных channels subscribers pull/fan-out hierarchy, иначе write amplification огромен.
-
-## Отказы
-
-Reconnect повторяет unacked message с тем же ID. Duplicate delivery безопасна. Gateway crash восстанавливается через cursor. Push может прийти после realtime delivery; collapse/dedup — UX optimization. Edit/delete — новые versioned events, offline clients должны их применить.
-
-## Trade-offs/security
-
-Read receipts создают write amplification и privacy choices. End-to-end encryption меняет server search/moderation/multi-device key management. Наблюдайте connection count, send queue/backpressure, append latency (срок ответа), delivery gap и sync lag.
+Состояние «пользователь онлайн» приблизительно: соединение может уже оборваться. Огромные группы требуют отдельного масштабирования доставки, поскольку один сохранённый текст превращается в множество отправок. Сквозное шифрование отдельно меняет возможности поиска, модерации и управления ключами.
 
 ## Разбор на конкретной нагрузке
 
-Допущения учебного примера: 1 млн одновременно подключённых устройств, 20 млн сообщений в сутки, пик в 10 раз выше среднего. Это около 231 сообщений/с в среднем и 2 315/с на пике. При 1 KiB на запись годовой журнал занимает примерно 7,5 TB до индексов и реплик. При трёх копиях только сообщения потребуют примерно 22,4 TB. Файлы считаем отдельно.
+КиБ — 1024 байта; МБ, ГБ и ТБ здесь обозначают миллион, миллиард и триллион байтов. Допущения учебного примера: 1 млн одновременно подключённых устройств, 20 млн сообщений в сутки, пик в 10 раз выше среднего. Это около 231 сообщений/с в среднем и 2 315/с на пике. При 1 КиБ на запись годовой журнал занимает примерно 7,5 ТБ до индексов и реплик. При трёх копиях только сообщения потребуют примерно 22,4 ТБ. Файлы считаем отдельно.
 
 ```mermaid
 flowchart LR
@@ -53,9 +35,9 @@ flowchart LR
 
 ### Порядок и повтор отправки
 
-Храним `messages(conversation_id, seq, sender_id, client_message_id, body)` с уникальностью `(conversation_id, seq)` и `(conversation_id, sender_id, client_message_id)`. В короткой транзакции блокируем строку беседы, увеличиваем её `last_seq`, вставляем сообщение и событие Outbox (события, сохранённые вместе с бизнес-изменением). Подтверждаем только после commit (фиксация результата, который считается подтверждённым). Это простой стартовый вариант; отдельный упорядоченный журнал нужен после измерения предела горячей беседы.
+Храним `messages(conversation_id, seq, sender_id, client_message_id, body)` с уникальностью `(conversation_id, seq)` и `(conversation_id, sender_id, client_message_id)`. В короткой транзакции блокируем строку беседы, увеличиваем её `last_seq`, вставляем сообщение и событие таблицу исходящих событий outbox. Подтверждаем только после завершения транзакции. Это простой стартовый вариант; отдельный упорядоченный журнал нужен после измерения предела горячей беседы.
 
-Почему нельзя взять PostgreSQL sequence и считать отсутствие номера потерей? Sequence допускает пропуски при rollback (отмена локальной транзакции или возврат старой версии). Если синхронизация требует непрерывных номеров, счётчик беседы должен обновляться транзакционно. Если номера просто возрастают, API отдаёт продолжение и явную границу обработанного журнала: клиент не делает вывод по арифметическому пропуску.
+Почему нельзя взять генератор последовательностей PostgreSQL (sequence) и считать отсутствие номера потерей? Генератор sequence допускает пропуски при откате транзакции. Если синхронизация требует непрерывных номеров, счётчик беседы должен обновляться транзакционно. Если номера просто возрастают, API отдаёт продолжение и явную границу обработанного журнала: клиент не делает вывод по арифметическому пропуску.
 
 ### Доставка и возобновление
 
@@ -65,7 +47,7 @@ flowchart LR
 
 ## Источник механизма
 
-[PostgreSQL 18: sequence gaps](https://www.postgresql.org/docs/18/functions-sequence.html). Числа и topology в примерах — учебные допущения, не параметры этой системы.
+[PostgreSQL 18: sequence gaps](https://www.postgresql.org/docs/18/functions-sequence.html). Числа в примере учебные; реальную нагрузку и размеры нужно измерить.
 
 ## Проверь себя
 

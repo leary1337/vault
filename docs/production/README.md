@@ -1,22 +1,23 @@
 ---
-title: Production engineering
-description: Incident response и диагностические runbooks для типичных backend failures.
+title: "Диагностика работающего сервиса"
+description: "Выберите наблюдаемый симптом: медленные ответы, CPU, память или очередь"
 tags: [production, sre, troubleshooting]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
-# Production engineering
+# Диагностика работающего сервиса
 
-Раздел превращает симптомы в упорядоченные расследования. Сначала определяйте user impact и scope, затем сравнивайте healthy/unhealthy cohorts, проверяйте изменения и только после этого углубляйтесь в process/database/broker.
+Выберите наблюдаемый симптом: медленные ответы, CPU, память или очередь. Статьи связывают измерение с гипотезой и объясняют, что считать подтверждением, а что — только догадкой.
+
+Открывайте нужную тему по вопросу. В статье сначала разберите механизм и пример, затем ответьте на «Проверь себя» до раскрытия ответа.
 
 ## Runbooks
 
-- [Incident response](incident-response.md) — роли, timeline, mitigation и learning.
-- [High CPU](high-cpu.md), [high memory](high-memory.md), [memory leak](memory-leak.md), [goroutine leak](goroutine-leak.md).
-- [High latency](high-latency.md), [database overload](database-overload.md), [Kafka lag](kafka-lag.md).
-- [Connection pool exhaustion](connection-pool-exhaustion.md), [retry storm](retry-storm.md), [thundering herd](thundering-herd.md).
+- [Разбор инцидента: вернуть работу и сохранить факты](incident-response.md) — роли, timeline, mitigation и learning.
+- [Высокая загрузка процессора: как найти причину](high-cpu.md), [Много памяти: что именно выросло](high-memory.md), [Утечка памяти: почему ненужные объекты остаются](memory-leak.md), [Утечка горутин: кто ждёт того, кто уже ушёл](goroutine-leak.md).
+- [Медленные ответы: где запрос теряет время](high-latency.md), [Перегрузка БД: вычисления, диск или блокировки](database-overload.md), [Отставание Kafka: почему обработка не успевает](kafka-lag.md).
+- [Закончились соединения: как читать состояние пула](connection-pool-exhaustion.md), [Шторм повторов: ошибка усиливает сама себя](retry-storm.md), [Одновременный наплыв одинаковой работы](thundering-herd.md).
 
 Runbook — starting point, не набор команд для слепого выполнения. Укажите владельца, environment-specific dashboards, права, rollback и опасные действия. Любая mitigation проверяется по пользовательскому SLI.
 
-Основной workflow: [Production debugging](../observability/production-debugging.md).
-
+Основной workflow: [Диагностика работающего сервиса](../observability/production-debugging.md).

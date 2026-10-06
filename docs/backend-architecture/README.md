@@ -1,24 +1,24 @@
 ---
-title: Backend architecture
-description: Границы, направления зависимостей и компромиссы архитектуры backend-сервисов.
+title: "Архитектура приложения"
+description: "Как разделить правила продукта, входящие запросы и доступ к данным"
 tags: [architecture, backend, design]
-updated: 2026-09-10
+updated: 2026-10-06
 ---
 
-# Backend architecture
+# Архитектура приложения
 
-Архитектура определяет границы ответственности, ownership данных и допустимые направления зависимостей. Название pattern не гарантирует maintainability: хорошая структура делает типичные изменения локальными и failure modes видимыми.
+Как разделить правила продукта, входящие запросы и доступ к данным. Примеры показывают, где проходят транзакция, проверка права и владение ресурсами.
 
-Оценивайте решение по change coupling, runtime coupling, consistency, latency, operability, team ownership и стоимости migration. Начинайте с минимальной структуры, которая удерживает реальные invariants; добавляйте indirection только под существующую ось изменений.
+Открывайте нужную тему по вопросу. В статье сначала разберите механизм и пример, затем ответьте на «Проверь себя» до раскрытия ответа.
 
 ## Темы
 
-- [API design](api-design.md)
-- [Clean Architecture](clean-architecture.md)
-- [Dependency injection](dependency-injection.md)
-- [Hexagonal architecture](hexagonal-architecture.md)
-- [Layered architecture](layered-architecture.md)
-- [Modular monolith](modular-monolith.md)
-- [Monolith vs microservices](monolith-vs-microservices.md)
-- [Repository pattern](repository-pattern.md)
-- [Service Layer](service-layer.md)
+- [Проектирование API: договорённость с клиентом](api-design.md)
+- [Чистая архитектура: куда направлять зависимости](clean-architecture.md)
+- [Передача зависимостей: dependency injection](dependency-injection.md)
+- [Порты и адаптеры: отделить правила от технологий](hexagonal-architecture.md)
+- [Слоистая архитектура](layered-architecture.md)
+- [Модульный монолит](modular-monolith.md)
+- [Монолит и микросервисы: что меняется при разделении](monolith-vs-microservices.md)
+- [Репозиторий: контракт доступа к данным](repository-pattern.md)
+- [Сервисный слой: одна операция продукта](service-layer.md)

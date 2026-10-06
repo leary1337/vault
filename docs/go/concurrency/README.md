@@ -1,26 +1,26 @@
 ---
-title: Concurrency в Go
-description: Модель конкурентности Go, goroutines, channels и синхронизация.
+title: "Конкурентность Go"
+description: "Несколько задач могут продвигаться независимо, но общие данные требуют согласованного порядка."
 tags:
   - go
   - concurrency
 updated: 2026-10-06
 ---
 
-# Concurrency в Go
+# Конкурентность Go
 
-Конкурентность позволяет нескольким задачам продвигаться независимо. Здесь разбирается не только запуск goroutines, но и кто владеет данными, что их синхронизирует, как отменить ожидание и дождаться завершения. Простые примеры сопровождаются механизмом и производственными ограничениями.
+Несколько задач могут продвигаться независимо, но общие данные требуют согласованного порядка. Здесь объясняются запуск и завершение горутин, каналы, блокировки и отмена. Главное — определить, кто меняет данные и кто отвечает за окончание работы.
 
 ## Темы
 
-- [Atomics](atomics.md)
-- [Backpressure](backpressure.md)
-- [Channels](channels.md)
-- [Context](context.md)
-- [Data races](data-races.md)
-- [Goroutine leaks](goroutine-leaks.md)
-- [Goroutines](goroutines.md)
-- [Graceful shutdown](graceful-shutdown.md)
+- [Атомарные операции](atomics.md)
+- [Ограничение входящей работы](backpressure.md)
+- [Каналы](channels.md)
+- [Контекст](context.md)
+- [Гонки данных](data-races.md)
+- [Утечки горутин](goroutine-leaks.md)
+- [Горутины](goroutines.md)
+- [Корректная остановка](graceful-shutdown.md)
 - [Модель памяти Go](memory-model.md)
 - [Основы конкурентности в Go](fundamentals.md)
 - [Паттерны конкурентности](patterns.md)

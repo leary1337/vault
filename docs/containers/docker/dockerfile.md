@@ -1,43 +1,36 @@
 ---
-title: Dockerfile
-description: Build context, instructions, multi-stage и runtime command semantics.
+title: "Dockerfile"
+description: "Dockerfile — рецепт сборки образа."
 tags: [containers, docker, dockerfile]
 updated: 2026-10-06
 ---
 
 # Dockerfile
 
-Dockerfile — рецепт сборки образа. Build запускает инструкции и сохраняет результат; container потом запускает уже готовый executable с заданными аргументами.
+Dockerfile — рецепт сборки образа. Во время сборки выполняются инструкции и сохраняются файлы результата. При запуске контейнера выполняется уже выбранная программа: инструкции сборки не повторяются.
 
-Dockerfile описывает build stages. Build context — доступные builder files; `COPY ../secret` не должен обходить его. `.dockerignore` уменьшает context и риск утечки.
+## Основные инструкции
 
-## Instructions
+`FROM` начинает этап, который можно назвать через `AS build`. `WORKDIR` задаёт рабочий каталог. `COPY` переносит файлы из **контекста сборки** — набора файлов, переданного сборщику. `.dockerignore` исключает ненужные файлы и секреты до передачи.
 
-- `FROM` начинает stage; именуйте `AS build`.
-- `WORKDIR` задаёт явный directory.
-- `COPY` предпочтительнее `ADD`, если не нужны специальные semantics.
-- `RUN` выполняется во время build и создаёт layer/result.
-- `ARG` доступен build, `ENV` остаётся в image/runtime; оба не подходят для secrets.
-- `USER` задаёт default UID/GID.
-- `EXPOSE` документирует port, но не publish-ит его.
-- `HEALTHCHECK` запускает command внутри container, если платформа его использует.
+`RUN` запускает команду при сборке. `ARG` задаёт её параметр, `ENV` сохраняет переменную в образе и окружении запуска; ни один не подходит для секретов. `USER` задаёт пользователя. `EXPOSE` документирует порт, но не публикует его. `HEALTHCHECK` описывает проверку внутри контейнера, если платформа её использует.
 
-`ENTRYPOINT` задаёт executable, `CMD` — default args/command. Exec form передаёт signals process напрямую:
+`ENTRYPOINT` задаёт программу, `CMD` — аргументы или команду по умолчанию. Форма массива не создаёт промежуточную оболочку:
 
 ```dockerfile
 ENTRYPOINT ["/service"]
 CMD ["serve", "--listen=:8080"]
 ```
 
-Shell form запускает `/bin/sh -c`, меняет signal/PID semantics и expansion. Wrapper script заканчивайте `exec "$@"`.
+Строковая форма запускает `/bin/sh -c`, что меняет подстановки и доставку сигналов. Обёртку заканчивайте `exec "$@"`, чтобы её процесс заменило приложение.
 
-## Secrets и cache
+## Секреты и кеш
 
-Не используйте `ARG TOKEN`, `COPY .env` или credential в URL: metadata/layers/cache могут их сохранить. BuildKit secret/SSH mounts доступны только на `RUN` и не попадают в result, если command сам их не записал.
+Ранний `COPY .env`, `ARG TOKEN` или секрет в URL может сохраниться в слоях, служебных данных или кеше. BuildKit предоставляет secret/SSH mounts на время `RUN`; команда не должна сама записать секрет в результат.
 
-Объединяйте package install + cleanup в один `RUN` для layer correctness, но не склеивайте всё ценой нечитаемого cache graph. Tests/scans выполняются отдельным target/CI gate.
+Установку пакетов и удаление её временных файлов объединяют в один `RUN`, иначе нижний слой всё ещё хранит данные. При этом этапы должны сохранять понятные границы и возможность повторного использования кеша. Тесты и проверки выполняйте отдельным этапом или в CI.
 
-## Build и run легко перепутать
+## Сборка и запуск на примере
 
 ```dockerfile
 FROM alpine:3.22
@@ -46,9 +39,9 @@ ENTRYPOINT ["cat"]
 CMD ["/message.txt"]
 ```
 
-Учебный образ: `docker build -t message .`, затем `docker run --rm message` печатает `built`. `docker run --rm message /etc/os-release` заменяет CMD, но сохраняет ENTRYPOINT и вызовет `cat /etc/os-release`. `RUN` при старте container повторно не выполняется. Версия base здесь пример, а не рекомендация последнего patch; для воспроизводимости фиксируют digest (криптографический идентификатор конкретного содержимого).
+`docker build -t message .` создаёт образ. `docker run --rm message` печатает `built`. Если добавить `/etc/os-release`, этот аргумент заменит `CMD`, но сохранит `ENTRYPOINT`: выполнится `cat /etc/os-release`.
 
-Dockerfile context задаётся последним аргументом build, а путь файла — `-f`; это независимые вещи. Если context слишком широк, `.dockerignore` должен исключать credentials и ненужные данные до передачи builder.
+Последний аргумент `build` задаёт контекст, `-f` — путь Dockerfile; это независимые настройки. Версия базового образа здесь учебная. Для воспроизводимости используют digest — идентификатор конкретного содержимого — и контролируемо обновляют его.
 
 ## Источники
 
@@ -57,13 +50,13 @@ Dockerfile context задаётся последним аргументом buil
 
 ## Проверь себя
 
-1. Что заменяет аргумент после image у docker run?
-2. Удалит ли RUN rm секрет из раннего COPY?
+1. Что обычно заменяет аргумент после имени образа в `docker run`?
+2. Удалит ли `RUN rm` секрет из раннего слоя `COPY`?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Обычно CMD/default args, ENTRYPOINT сохраняется.
-2. Нет, он остаётся в нижнем layer; secrets не должны попадать туда вообще.
+1. Аргументы или команду `CMD`; `ENTRYPOINT` сохраняется.
+2. Нет. Секрет останется в нижнем слое.
 
 </details>

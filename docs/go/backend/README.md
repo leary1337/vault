@@ -1,23 +1,23 @@
 ---
-title: Go backend standard library
-description: HTTP, JSON, time, logging и lifecycle production Go-сервиса.
+title: "Стандартная библиотека для сервиса Go"
+description: "Стандартная библиотека помогает принять HTTP-запрос, ограничить время и размер данных, обратиться к зависимости и остановить сервис."
 tags:
   - go
   - backend
 updated: 2026-10-06
 ---
 
-# Go backend standard library
+# Стандартная библиотека для сервиса Go
 
-Backend — серверная часть приложения. Здесь стандартная библиотека Go помогает обработать запрос, ограничить время и память, вызвать зависимости и остановиться без потери управляемой работы. Timeout ограничивает время, limit — размер/количество; оба нужны независимо.
+Стандартная библиотека помогает принять HTTP-запрос, ограничить время и размер данных, обратиться к зависимости и остановить сервис. Ограничение времени не заменяет ограничение памяти: быстрый большой запрос и маленький медленный требуют разных проверок.
 
 ## Темы
 
 - [`net/http`](net-http.md)
-- [Graceful shutdown HTTP-сервера](graceful-shutdown.md)
-- [HTTP client и Transport](http-client.md)
-- [HTTP request context](request-context.md)
-- [HTTP server](http-server.md)
+- [Корректная остановка HTTP-сервера](graceful-shutdown.md)
+- [HTTP-клиент и Transport](http-client.md)
+- [Контекст HTTP-запроса](request-context.md)
+- [HTTP-сервер](http-server.md)
 - [JSON в Go](json.md)
-- [Structured logging в Go](logging.md)
-- [Time и timers](time.md)
+- [Структурированные логи Go](logging.md)
+- [Время и таймеры](time.md)

@@ -1,25 +1,19 @@
 ---
-title: Service
-description: Stable virtual endpoint, EndpointSlices и service types.
+title: "Service"
+description: "Pod меняются, а клиенту нужен устойчивый адрес."
 tags: [containers, kubernetes, networking]
 updated: 2026-10-06
 ---
 
 # Service
 
-Service сохраняет имя и виртуальную точку доступа, пока Pods меняются. Labels выбирают адресатов, readiness (готовность к операции или к приёму новой работы в указанном контексте) отмечает готовность, data plane направляет соединение.
+Pod меняются, а клиенту нужен устойчивый адрес. Service задаёт виртуальную точку доступа и DNS-имя для выбранных Pod. Метки выбирают получателей, готовность влияет на адресатов, а сетевой механизм перенаправляет соединения.
 
-Service задаёт стабильное virtual endpoint/DNS для динамического набора Pods. Selector обычно формирует EndpointSlices из ready matching Pods; конкретный proxy/data plane реализуют kube-proxy replacement/CNI.
+## Виды Service
 
-## Types
+`ClusterIP` даёт внутренний виртуальный IP. `NodePort` публикует порт узлов. `LoadBalancer` запрашивает внешнюю реализацию балансировщика у платформы. `ExternalName` создаёт DNS CNAME без обычного проксирования. Headless Service с `clusterIP: None` возвращает отдельные адреса для обнаружения клиентом.
 
-- `ClusterIP` — internal virtual IP (default);
-- `NodePort` — port на nodes, обычно building block;
-- `LoadBalancer` — просит внешнюю реализацию/provider создать LB;
-- `ExternalName` — DNS CNAME, без proxy/selector;
-- headless (`clusterIP: None`) — DNS возвращает individual endpoints для client-side discovery/stateful use.
-
-`port` — Service port, `targetPort` — container/Pod port, `nodePort` — node exposure. Named ports помогают evolution.
+`port` — порт Service, `targetPort` — порт или имя порта Pod, `nodePort` — внешний порт узла.
 
 ```yaml
 apiVersion: v1
@@ -31,9 +25,9 @@ spec:
     - {name: http, port: 80, targetPort: http}
 ```
 
-Service не проверяет application health сам: readiness влияет на ready endpoints. Existing connections могут продолжать идти в terminating Pod в зависимости от client/LB/connection; graceful shutdown всё равно нужен.
+Пример ищет `app=api`, принимает на 80 и направляет на порт `http`. В Deployment должна совпасть метка, а у контейнера — имя `http` для 8080. Service не выполняет собственный бизнес-запрос здоровья: готовность определяется отдельно.
 
-## Debug
+## Проверить адресатов
 
 ```bash
 kubectl get service api -o yaml
@@ -41,23 +35,23 @@ kubectl get endpointslice -l kubernetes.io/service-name=api
 kubectl get pod -l app=api --show-labels
 ```
 
-Если endpoints пусты, проверьте selector, readiness и target port прежде DNS/firewall. Service routing не гарантирует равный request load при keep-alive/HTTP2.
-
-## Связать selector и named port
-
-Service выше ищет `app=api`, принимает на 80 и ведёт на port с именем `http`. Deployment в соседней статье задаёт label app=api и `containerPort:8080,name:http`; эти три части должны совпадать.
+Если адресаты пусты, сначала проверьте selector, readiness и порт. Это может объяснить отказ раньше проверки DNS и внешнего TLS.
 
 ```mermaid
 flowchart LR
-    N["api.namespace.svc:80"] --> S["Service selector app=api"]
-    S --> E["EndpointSlice ready addresses"]
+    N["api.namespace.svc:80"] --> S["Service: метка app=api"]
+    S --> E["EndpointSlice: готовые адреса"]
     E --> A["Pod A http:8080"]
     E --> B["Pod B http:8080"]
 ```
 
-Пустые endpoints означают проблему selector/готовности до проверки внешнего TLS. `ExternalName` даёт DNS alias, но клиентский Host/TLS server name может требовать согласования с целевым сервисом.
+`ExternalName` лишь даёт другое DNS-имя. Клиентские Host и имя сертификата TLS должны соответствовать целевому сервису.
 
-Для HTTP/2 одно долговечное соединение может нести множество RPC к одному Pod. Равномерное распределение TCP connections не гарантирует равномерность запросов; нужна соответствующая client/L7 balancing policy.
+## Почему запросы распределяются неравномерно
+
+Одно долгое HTTP/2-соединение может нести множество RPC к одному Pod. Равномерное распределение соединений не означает равномерного распределения запросов. Для нужного результата требуется подходящее клиентское или прикладное балансирование.
+
+Уже открытое соединение также может продолжить работу с удаляемым Pod. Корректная остановка нужна даже после исключения из готовых адресатов.
 
 ## Источники
 
@@ -65,13 +59,13 @@ flowchart LR
 
 ## Проверь себя
 
-1. Что различает port и targetPort?
-2. Почему Service не гарантирует равный RPC load?
+1. Чем `port` отличается от `targetPort`?
+2. Почему Service не гарантирует одинаковую нагрузку RPC?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Первый относится к Service, второй к backend Pod port/name.
-2. Долговечное multiplexed connection может закрепить много RPC за одним backend.
+1. Первый принадлежит Service, второй выбирает порт Pod.
+2. Много RPC могут идти по одному соединению к одному Pod.
 
 </details>

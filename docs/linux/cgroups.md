@@ -1,28 +1,32 @@
 ---
-title: cgroups v2
-description: CPU, memory, PID и I/O accounting и limits.
+title: "cgroups v2"
+description: "cgroup объединяет процессы, учитывает их расход ресурсов и задаёт общий бюджет."
 tags: [linux, cgroups, containers]
 updated: 2026-10-06
 ---
 
 # cgroups v2
 
-cgroup объединяет процессы и задаёт им общий бюджет ресурсов. Namespace меняет видимость, а cgroup ограничивает использование: это разные механизмы контейнера.
+**cgroup** объединяет процессы, учитывает их расход ресурсов и задаёт общий бюджет. Контейнеру можно ограничить память и процессорное время, хотя он делит ядро с другими процессами. Пространства имён меняют видимость ресурсов; cgroup управляет расходом — это разные механизмы.
 
-cgroup организует processes и применяет resource controllers и accounting иерархически. Современный unified cgroup v2 имеет единое дерево; container не является отдельной VM и делит kernel host.
+OOM (out of memory) означает нехватку памяти, при которой система может завершить процесс. PSI (Pressure Stall Information) измеряет время, когда задачи задерживались из-за нехватки ресурса.
 
-## Основные interfaces
+В cgroup v2 группы образуют одно дерево. Ограничения родителя действуют и на дочерние группы.
 
-- `cpu.max`: quota + period (`max` означает без hard quota);
-- `cpu.weight`: proportional share при contention;
-- `cpu.stat`: usage и throttled periods/time;
-- `memory.current`, `memory.stat`: current usage и breakdown;
-- `memory.high`: reclaim/throttling pressure, не hard OOM limit;
-- `memory.max`: hard boundary; невозможный reclaim (освобождение или вытеснение страниц для получения памяти) может вызвать cgroup OOM;
-- `memory.events`: `high/max/oom/oom_kill` counters;
-- `pids.current/pids.max`: tasks limit;
-- `io.stat/io.max/io.weight`: device I/O accounting/control;
-- `*.pressure`: PSI внутри cgroup.
+## Файлы управления и учёта
+
+| Файл | Что показывает или задаёт |
+|---|---|
+| `cpu.max` | Бюджет CPU за период; `max` снимает собственную квоту |
+| `cpu.weight` | Относительный вес при конкуренции за CPU |
+| `cpu.stat` | Израсходованное CPU-время и принудительные паузы |
+| `memory.current`, `memory.stat` | Текущий расход памяти и его состав |
+| `memory.high` | Порог, после которого усиливается освобождение памяти и замедляется группа |
+| `memory.max` | Жёсткая граница; невозможность освободить память может привести к OOM |
+| `memory.events` | Число событий `high`, `max`, `oom`, `oom_kill` |
+| `pids.current`, `pids.max` | Текущее число задач и его лимит |
+| `io.stat`, `io.max`, `io.weight` | Учёт, ограничения и вес операций с устройствами |
+| `*.pressure` | PSI: время задержек из-за нехватки соответствующего ресурса |
 
 ```bash
 cat /proc/$PID/cgroup
@@ -32,9 +36,7 @@ cat /sys/fs/cgroup/<path>/memory.current
 cat /sys/fs/cgroup/<path>/memory.events
 ```
 
-Memory accounting включает anonymous, page cache и kernel/socket categories в пределах controller semantics; process RSS не равен `memory.current`. CPU quota создаёт periodic throttling (принудительное ожидание после исчерпания квоты) и tail latency (задержка самых медленных запросов, например p99), даже если host имеет idle CPUs.
-
-Limits и reservations различайте: hard cap предотвращает noisy neighbor ценой throttling/OOM; weight/protection работает при contention. Runtime должен видеть container limits: Go 1.25+ при соответствующих defaults подбирает `GOMAXPROCS` по cgroup CPU limit, а `GOMEMLIMIT` оставляет headroom (запас ресурсов сверх обычной нагрузки) до memory.max.
+`$PID` — исследуемый процесс, `<path>` — путь его группы. Память учитывается шире RSS одного процесса: в неё могут входить файловый кеш, буферы сокетов и другие категории ядра. Состав проверяйте в `memory.stat`.
 
 ## Прочитать квоту в понятных единицах
 
@@ -43,9 +45,13 @@ cpu.max: 150000 100000
 memory.max: 536870912
 ```
 
-Это пример вывода. Первая строка даёт до 150 мс суммарного CPU-времени за период 100 мс: средний потолок 1,5 CPU, а не закреплённые полтора ядра. Вторая — 512 МиБ памяти. Несколько потоков могут быстро потратить quota, а потом ждать остаток периода. Именно поэтому p99 может ухудшаться при свободном host CPU.
+Это пример вывода. `150000 100000` разрешает суммарно 150 мс CPU за период 100 мс: средний потолок 1,5 CPU. Это не привязка к полутора определённым ядрам. Несколько потоков могут быстро потратить бюджет, а потом ждать остаток периода. Из-за этого медленные запросы могут задерживаться, хотя на узле свободны другие CPU.
 
-Проверяйте также родителей cgroup: дочернее `max` не снимает ограничение предка. Для memory сравните `memory.current`, `memory.stat`, `memory.events` и pressure; RSS одного process не включает весь учёт группы. Go 1.25+ defaults также зависят от go directive и GODEBUG, подробнее в [scheduler](../go/runtime/scheduler.md).
+`536870912` байт — 512 МиБ памяти. Если `memory.max=max` у дочерней группы, лимит родителя всё равно остаётся. `memory.high` не является жёстким пределом убийства процесса: он запускает давление на освобождение памяти раньше.
+
+## Связь с приложением
+
+Жёсткий потолок ограничивает влияние одной группы на соседей ценой пауз или OOM. Вес распределяет ресурс при конкуренции и не равен резерву. Go 1.25+ при соответствующих настройках учитывает CPU cgroup в `GOMAXPROCS`; детали версии языка и `GODEBUG` описаны в [планировщике](../go/runtime/scheduler.md). `GOMEMLIMIT` — мягкий ориентир Go, который должен оставлять запас до полного лимита контейнера.
 
 ## Источники
 
@@ -53,13 +59,13 @@ memory.max: 536870912
 
 ## Проверь себя
 
-1. Что означает 50000 100000 в cpu.max?
-2. Снимает ли memory.max=max дочерней группы лимит родителя?
+1. Что означает `50000 100000` в `cpu.max`?
+2. Снимает ли `memory.max=max` у дочерней группы лимит родителя?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. До 0,5 CPU в среднем за период, не affinity на половину ядра.
-2. Нет, ограничения иерархические.
+1. До 50 мс CPU за период 100 мс, то есть в среднем 0,5 CPU.
+2. Нет. Ограничения действуют по иерархии.
 
 </details>

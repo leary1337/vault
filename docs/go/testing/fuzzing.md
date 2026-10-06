@@ -1,6 +1,6 @@
 ---
-title: Fuzzing
-description: Coverage-guided fuzz tests для parsers, codecs и trust boundaries.
+title: "Fuzzing"
+description: "Fuzzing автоматически создаёт неожиданные входы и ищет нарушения свойства программы."
 tags:
   - go
   - testing
@@ -10,9 +10,7 @@ updated: 2026-10-06
 
 # Fuzzing
 
-Fuzzing автоматически подбирает неожиданные входы. Лучше проверять свойство результата, а не список заранее известных строк.
-
-Go toolchain поддерживает coverage-guided fuzzing с Go 1.18. Хорошие targets: parsers, decoders, validation, round-trip и security boundaries.
+Fuzzing автоматически создаёт неожиданные входы и ищет нарушения свойства программы. В Go он поддерживается с 1.18 и использует покрытие для выбора новых вариантов. Хорошие цели — парсеры, декодировщики и границы внешних данных.
 
 ```go
 func FuzzParseID(f *testing.F) {
@@ -31,9 +29,7 @@ func FuzzParseID(f *testing.F) {
 go test -fuzz=FuzzParseID -fuzztime=30s ./pkg
 ```
 
-Target должен быть быстрым, deterministic и isolated: engine выполняет cases параллельно и в неопределённом порядке. Ограничивайте allocations/recursion/input expansion, иначе fuzzing найдёт только resource exhaustion harness-а. Минимизированный failing input добавляется в corpus и должен воспроизводиться обычным `go test`.
-
-## Самодостаточное свойство кодека
+## Самодостаточный пример
 
 ```go
 func FuzzHexRoundTrip(f *testing.F) {
@@ -49,7 +45,15 @@ func FuzzHexRoundTrip(f *testing.F) {
 }
 ```
 
-В `_test.go` нужны `bytes`, `encoding/hex`, `testing`. Обычный `go test` выполнит seeds, `go test -fuzz=FuzzHexRoundTrip -fuzztime=10s` будет искать новые входы. Если ваша нормализация намеренно меняет вход, round-trip equality не подходит: сформулируйте корректное свойство вроде идемпотентности `normalize(normalize(x))=normalize(x)`.
+В `_test.go` нужны `bytes`, `encoding/hex`, `testing`. Обычный `go test` запускает сохранённые входы. `go test -fuzz=FuzzHexRoundTrip -fuzztime=10s` ищет новые.
+
+После кодирования и декодирования байты должны совпасть. Если операция намеренно нормализует данные, такое свойство неверно; можно проверить `normalize(normalize(x))=normalize(x)`.
+
+## Воспроизводимость и пределы
+
+Цель должна быть быстрой, детерминированной и изолированной: входы исполняются параллельно и в неизвестном порядке. Ограничивайте память, рекурсию и расширение данных, иначе тестовая система исчерпает ресурсы вместо поиска полезной ошибки.
+
+Уменьшенный ошибочный вход сохраняется в корпусе и должен воспроизводиться обычным тестом. Это позволяет исправление не забыть в дальнейшем.
 
 ## Источники
 
@@ -58,13 +62,13 @@ func FuzzHexRoundTrip(f *testing.F) {
 
 ## Проверь себя
 
-1. Чем seed-run отличается от fuzz-run?
-2. Почему нельзя бесконтрольно расширять вход?
+1. Чем обычный запуск отличается от поиска fuzzing?
+2. Почему нужно ограничивать расширение входа?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Обычный test выполняет сохранённые входы; fuzz engine создаёт и мутирует новые.
-2. Harness сам может исчерпать память и скрыть полезные ошибки target.
+1. Первый исполняет сохранённые случаи, второй создаёт и меняет новые.
+2. Иначе сама тестовая система может исчерпать память.
 
 </details>

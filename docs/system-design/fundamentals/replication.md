@@ -1,54 +1,39 @@
 ---
-title: Replication в System Design
-description: Read scale, failover и durability decisions.
+title: "Копии данных: какую потерю и задержку допускаем"
+description: "Копии полезны для отказоустойчивости, но нужно определить, когда клиент получает успех и какую копию разрешено выбирать новым владельцем"
 tags: [system-design, replication]
 updated: 2026-10-06
 ---
 
-# Replication в System Design
+# Копии данных: какую потерю и задержку допускаем
 
-Реплики дают копии и возможность восстановления; их свежесть и право стать лидером задаются протоколом.
+Копии полезны для отказоустойчивости, но нужно определить, когда клиент получает успех и какую копию разрешено выбирать новым владельцем.
 
-Replication проектируют от failure domains и consistency (согласованность наблюдаемых значений и порядка), а не от числа копий.
+## Как это работает
 
-## Решения
+Если успех приходит до сохранения у другой копии, потеря основного узла может потерять подтверждённую запись. Если ждём удалённое сохранение, обычная задержка и зависимость от доступности участников растут. Выберите модель отказов и обещание сохранности явно.
 
-- leader (узел, координирующий запись), multi-leader или leaderless write path;
-- synchronous acknowledgement или asynchronous lag;
-- read routing и session guarantees;
-- promotion authority, freshness и fencing (отклонение действий старого владельца самим ресурсом);
-- repair, backup и reconciliation (сверка и устранение расхождений);
-- placement across rack/zone/region.
+Чтение копии требует проверки применения, а не только соединения. Полученные байты журнала могут ещё не быть отражены в данных. У восстановления есть собственная нагрузка на диск и сеть. Подробнее: [механизм репликации](../../distributed-systems/replication.md).
 
-Synchronous cross-zone replica (копия данных на другом узле) улучшает durability (сохранность подтверждённых данных при заявленных отказах), но добавляет latency (срок ответа) и может остановить writes при потере quorum (достаточный набор участников для решения). Asynchronous replica сохраняет availability/latency, но допускает потерю acknowledged tail и stale reads.
+## Разобранный пример
 
-Read scaling работает только если workload допускает lag и replicas имеют capacity на replay (повторное проигрывание сохранённых событий) плюс queries. Долгий analytical query может конфликтовать с cleanup/replay конкретной database.
+Копия получила WAL, но не применила его: чтение ещё старое. Для чтения своей записи ждут применённую позицию. Тяжёлая аналитика на копии может отнимать ресурс у применения и увеличить отставание.
 
-## Failure review
-
-Проиграйте leader crash до/после acknowledgement, network partition (раздел журнала или данных; при network partition — разрыв связи) со старым leader, promotion lagging replica, loss whole zone и failed rejoin. Зафиксируйте RPO/RTO и кто принимает риск unclean failover.
-
-Наблюдайте applied position/lag, not просто «replica connected». Регулярно тестируйте promotion, client rerouting, fencing и restore. Глубже: [replication models](../../distributed-systems/replication.md).
-
-## На конкретном примере
-
-Ответ после local commit (фиксация результата, который считается подтверждённым) и до отправки replica может потеряться вместе с primary. Для нулевого RPO (допустимая потеря подтверждённых данных) в выбранной модели нужно подтверждение достаточных durable копий и promotion, сохраняющий committed историю.
-
-Replica получила WAL, но не применила: read ещё старый. Поэтому read-your-writes ждёт replay/applied position, не только receive. Для capacity считаем queries и replay вместе: тяжёлая аналитика способна увеличить lag. Backup нужен отдельно, поскольку DROP/delete/corruption тоже могут скопироваться.
-
-## Источник механизма
-
-[PostgreSQL 18: replication](https://www.postgresql.org/docs/18/warm-standby.html). Числа и topology в примерах — учебные допущения, не параметры этой системы.
+Нулевой RPO в выбранной модели требует достаточных сохраняемых копий и корректного выбора нового владельца. Одно подключение копии этого не доказывает. Ошибочное удаление тоже копируется, поэтому резервная копия и восстановление на прошлый момент нужны отдельно.
 
 ## Проверь себя
 
-1. Достаточно ли replica connected для свежести?
-2. Почему synchronous replication может уменьшить availability (доступность заявленной операции)?
+1. Доказывает ли статус connected свежесть?
+2. Почему синхронная запись может быть менее доступной?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Нет, нужны applied position и lag.
-2. Недоступность необходимых подтверждающих узлов останавливает записи.
+1. Нет, нужны применённая позиция и измеренное отставание.
+2. Недоступность необходимых подтверждающих участников останавливает успех записи.
 
 </details>
+
+## Источники
+
+- [PostgreSQL 18: replication](https://www.postgresql.org/docs/18/warm-standby.html)

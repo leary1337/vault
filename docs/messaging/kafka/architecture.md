@@ -1,57 +1,46 @@
 ---
 title: Архитектура Kafka
-description: Brokers, KRaft controllers, metadata, partitions и clients.
+description: "Путь запроса и роли компонентов: кто получает данные, исполняет работу и управляет состоянием."
 tags: [messaging, kafka, architecture]
 updated: 2026-10-06
 ---
 
 # Архитектура Kafka
 
-Kafka хранит последовательности записей на brokers. Controllers управляют тем, где находятся partitions и кто их leader; клиенты читают данные напрямую у brokers, а не через controller.
+Kafka хранит сообщения как последовательности записей на серверах — **брокерах**. Приложение-отправитель добавляет записи, приложение-получатель читает их. Чтение не удаляет запись: другие получатели могут прочитать её независимо, пока действует срок хранения.
 
-Kafka cluster разделяет data plane и metadata control plane. Brokers хранят partition logs и обслуживают produce/fetch requests. KRaft controllers ведут replicated metadata log: topics, partition assignments, ISR, broker registrations, configs и ACL-related metadata.
+## Почему поток делится на части
 
-## Путь клиентского запроса
+Именованный поток называется topic, его отдельная упорядоченная часть — partition. У каждой части есть ведущая копия, leader, и другие копии для восстановления. Клиенты отправляют и читают данные напрямую у брокера, который ведёт нужную часть.
 
-`bootstrap.servers` нужен только для первого контакта. Client получает cluster metadata и затем обращается напрямую к leader нужной partition. При смене leader или topology он обновляет metadata; bootstrap list должна содержать несколько достижимых brokers, но не обязана перечислять весь cluster.
+`bootstrap.servers` — начальные адреса для знакомства. Клиент получает информацию о расположении частей и дальше соединяется с нужными брокерами. Поэтому должны быть доступны не только начальный адрес, но и адреса из `advertised.listeners`. Неверный внутренний адрес может позволить первое подключение и сломать дальнейшую работу.
 
-Producer выбирает partition, отправляет batch её leader. Followers этой partition fetch-ят log у leader. Consumer fetch-ит records начиная с offset; group coordinator управляет membership и assignments, но payload читается у partition leaders.
+## Кто управляет размещением
 
-## Partition как единица данных
+Контроллеры KRaft хранят метаданные: какие части существуют, где их копии, кто ведущий, какие брокеры живы. Эти сведения имеют собственный согласованный журнал. Контроллер не является промежуточным сервером для всех пользовательских сообщений.
 
-Topic состоит из partitions. Каждая — ordered append-only log с offset, который уникален только внутри partition. Partition задаёт:
+В Kafka 4.x ZooKeeper не используется. Для ответственной эксплуатации роли брокеров и контроллеров обычно разделяют, чтобы нагрузка хранения сообщений не разрушила управление кластером. Установка одного процесса с обеими ролями удобна для разработки, но не показывает поведение отказоустойчивого кластера.
 
-- предел параллелизма обычной consumer group;
-- область ordering;
-- leader/follower replication unit;
-- единицу reassignment и recovery.
-
-Увеличение числа partitions не бесплатно: растут metadata, open files, replication/rebalance work, а keyed data может перераспределиться при повторном хэшировании.
-
-## Управление метаданными
-
-Controller quorum реплицирует metadata через Raft. Active controller применяет committed metadata и координирует leaders/ISR; остальные controllers готовы продолжить после election. Quorum требует majority, поэтому обычно используют 3 или 5 controller voters в независимых failure domains.
-
-ZooKeeper — только historical context для Kafka 3.x и миграций. Kafka 4.x удалил ZooKeeper mode; новый дизайн и runbooks должны быть KRaft-only.
+При проектировании отдельно проверьте путь данных, управление метаданными, адреса клиентов, диски, копии и восстановление. Наличие трёх серверов само по себе не означает, что все записи имеют три копии.
 
 ## Путь данных и метаданных
 
 ```mermaid
 flowchart LR
-    Producer[Producer] --> Leader[Broker: leader partition]
-    Leader --> Follower[Broker: follower]
-    Leader --> Consumer[Consumer]
-    Controllers[Controller quorum: metadata] -. назначения .-> Leader
+    Producer[Отправитель] --> Leader[Брокер: ведущая копия части]
+    Leader --> Follower[Брокер: догоняющая копия]
+    Leader --> Consumer[Получатель]
+    Controllers[Контроллеры: метаданные] -. назначения .-> Leader
     Controllers -. назначения .-> Follower
 ```
 
-bootstrap.servers помогает найти cluster. Полученные advertised.listeners должны быть достижимы клиенту: если bootstrap доступен, а broker рекламирует внутренний DNS, последующие requests сломаются.
+Начальные адреса помогают найти кластер. Следующие адреса из `advertised.listeners` должны быть достижимы клиенту. Если брокер сообщает имя внутренней сети, внешнее приложение может успешно познакомиться с кластером и затем не соединиться с нужной ведущей копией.
 
 ```text
 bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic ads
 ```
 
-Команда показывает partitions, leader, replicas и ISR. Это команда для существующего кластера/topic, не полный рецепт установки. Leader=-1 означает отсутствие доступного leader. Coordinator группы управляет назначением, но не передаёт все payload. Partition хранит порядок append; бизнес-порядок дополнительно зависит от производителя, key, retries и workers.
+Команда показывает части, ведущего, назначенные копии и ISR уже существующего потока `ads`. `Leader=-1` означает отсутствие доступного ведущего. Координатор управляет группой, а сообщения передают брокеры. Порядок журнала относится к добавлению в одну часть; бизнес-порядок ещё зависит от ключа, повторов и исполнителей.
 
 ## Источники
 
@@ -60,20 +49,20 @@ bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic ads
 
 ## Проверь себя
 
-1. **Почему доступный bootstrap ещё не доказывает работоспособность?**
+1. **Почему доступного начального адреса недостаточно?**
 
    <details>
    <summary>Ответ</summary>
 
-   Клиент далее обращается к advertised addresses partition leaders.
+   После получения расположения частей клиент соединяется с объявленными адресами брокеров; они тоже должны быть доступны.
 
    </details>
 
-2. **Controller хранит все сообщения topics?**
+2. **Хранят ли контроллеры все пользовательские сообщения?**
 
    <details>
    <summary>Ответ</summary>
 
-   Нет, ведёт metadata; данные хранят brokers.
+   Нет. Они ведут метаданные, сообщения хранят брокеры.
 
    </details>

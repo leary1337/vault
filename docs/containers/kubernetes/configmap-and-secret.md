@@ -1,41 +1,30 @@
 ---
-title: ConfigMap и Secret
-description: Configuration delivery, update semantics и secret protection.
+title: "ConfigMap и Secret"
+description: "ConfigMap хранит обычные настройки."
 tags: [containers, kubernetes, configuration, security]
 updated: 2026-10-06
 ---
 
 # ConfigMap и Secret
 
-ConfigMap передаёт обычную конфигурацию, Secret — чувствительные данные с отдельными правилами доступа. Base64 кодирует bytes, но любой получивший значение может его декодировать.
+ConfigMap хранит обычные настройки. Secret предназначен для чувствительных данных с отдельными правилами доступа. Base64 в manifest — обратимое кодирование байтов, а не шифрование: получивший значение может сразу его прочитать.
 
-ConfigMap хранит non-confidential configuration. Secret — отдельный API object с access controls, но base64 в manifest не encryption. Защитите etcd encryption at rest, RBAC (разграничение прав по ролям), audit, namespace и delivery path.
+## Как приложение получает обновления
 
-## Consumption
+Переменная окружения фиксируется при запуске контейнера. Файлы подключённого тома обновляются через kubelet с задержкой, но `subPath` не получает автоматических обновлений. Приложение должно заново читать путь и безопасно заменять настройки либо перезапускаться через новое обновление.
 
-- environment variables фиксируются при старте container и не обновляются;
-- mounted volume files обновляются eventually через kubelet projection, но `subPath` mount не получает automatic updates;
-- application должна atomic-read/reload или rollout (замена экземпляров приложения новой версией)-иться по version/checksum;
-- immutable (неизменяемый после создания) ConfigMap/Secret снижает accidental mutation и watch load, но требует нового object для change.
-
-## Practice
-
-Не commit-ьте Secret manifest с plaintext/base64. Используйте external secret manager/operator или encrypted GitOps flow с разделёнными ключами. ServiceAccount token проецируйте short-lived с нужной audience, не legacy long-lived secret.
-
-Configuration version включайте в deployment annotation/checksum, чтобы rollout был наблюдаем. Validate при startup и fail fast для invalid required config; optional dynamic change должна иметь rollback/default.
-
-Secrets не передавайте в command args/logs/metrics. Env проще, но видна child/process diagnostics и не rotating; file mount обычно удобнее для rotation, если client перечитывает. После rotation учитывайте old sessions/connections.
+Неизменяемый ConfigMap/Secret запрещает случайные изменения и уменьшает наблюдение за объектом, но для новой версии нужен новый объект. Версию или контрольную сумму включайте в шаблон Deployment, чтобы изменение и перезапуск были видны.
 
 ```bash
 kubectl auth can-i get secrets --as system:serviceaccount:ns:app -n ns
 kubectl get configmap app-config -o yaml
 ```
 
-Не выводите Secret contents в incident transcript. Ограничьте list/watch secrets: это раскрывает весь namespace scope (область измерения: host, cgroup или process).
+Не выводите содержимое Secret в журнал расследования. Право list/watch может раскрыть множество секретов пространства.
 
-## Файл, который можно обновлять
+## Обновляемый файл
 
-Фрагмент Pod spec, Secret `app-credentials` должен быть создан отдельно:
+Фрагмент Pod spec; Secret `app-credentials` создаётся отдельно:
 
 ```yaml
 containers:
@@ -49,9 +38,13 @@ volumes:
       secretName: app-credentials
 ```
 
-Файлы проекции обновляются не мгновенно; приложение должно заново читать путь, а не бесконечно держать старый FD. Для `subPath` automatic update не действует. При rotation новый пароль должен быть принят downstream до отказа старого; уже открытые sessions тоже имеют lifecycle.
+Постоянно открытый старый FD не гарантирует чтение новой проекции: открывайте путь заново. При ротации новый пароль сначала должен принимать вызываемый сервис, затем его получает приложение, после проверки отключается старый. Уже открытые сессии тоже имеют срок жизни.
 
-Право создавать Pod в namespace может косвенно дать возможность монтировать Secret, даже без прямого get secret. Поэтому защита требует RBAC/admission и разделения workload identities, а не только запрета просмотра yaml.
+## Защита и ошибки
+
+Не сохраняйте открытый или base64-секрет в Git. Используйте внешний менеджер или шифрованный процесс поставки с раздельными ключами. Защищайте хранилище etcd шифрованием, разграничением прав по ролям (RBAC) и аудитом. Право создать Pod может косвенно позволить подключить Secret даже без прямого чтения: нужны также ограничения запуска и разделение идентичностей.
+
+Токен ServiceAccount проецируйте с коротким сроком и нужной аудиторией. Проверяйте обязательные настройки при запуске; динамические изменения должны иметь понятный отказ и возврат к прежней версии. Не помещайте секреты в аргументы, логи или метрики.
 
 ## Источники
 
@@ -61,13 +54,13 @@ volumes:
 
 ## Проверь себя
 
-1. Меняется ли env после обновления ConfigMap?
-2. Почему base64 Secret не защищает содержимое?
+1. Обновится ли env после изменения ConfigMap?
+2. Почему base64 не защищает Secret?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Нет, env фиксируется при запуске; нужен restart/rollout.
-2. Это обратимое кодирование без ключа; нужны доступ и encryption at rest.
+1. Нет: требуется новый запуск контейнера.
+2. Для декодирования не нужен секретный ключ. Нужны защита доступа и хранения.
 
 </details>

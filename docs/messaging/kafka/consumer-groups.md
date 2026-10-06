@@ -1,49 +1,38 @@
 ---
-title: Consumer groups
-description: Membership, assignment, rebalance и актуальные group protocols.
+title: Группы получателей
+description: Как части делятся между участниками и что происходит при перераспределении.
 tags: [messaging, kafka, consumer-groups]
 updated: 2026-10-06
 ---
 
-# Consumer groups
+# Группы получателей
 
-Обычная consumer group делит partitions между участниками: одну partition читает один участник группы. Другая группа может независимо читать те же записи.
+Группа получателей делит части потока между участниками: одну часть одновременно читает один участник **обычной consumer group**. Другая группа читает те же данные независимо — например, поиск и аналитика не мешают друг другу.
 
-Обычная consumer group распределяет каждую topic partition не более чем одному member группы. Несколько групп читают topic независимо; consumers сверх числа partitions остаются idle.
+## Что происходит при смене состава
 
-## Назначение partitions и перераспределение
+При добавлении участника, отказе или изменении подписки координатор перераспределяет назначения — это rebalance. Одни стратегии отзывают назначения сразу, другие перемещают их постепенно, уменьшая остановку. Стратегия должна быть совместима у участников при обновлении.
 
-Coordinator хранит membership и committed offsets. При join/leave, subscription/topology change группа меняет assignment. Eager rebalance отзывает всё сразу; cooperative/incremental assignment старается перемещать только нужные partitions и уменьшает stop-the-world pause.
+Перед отдачей части прекратите новую работу, дождитесь ограниченного числа начатых задач или отмените их, сохраните только успешно обработанный непрерывный префикс. Старый исполнитель может успеть сделать внешний эффект после потери назначения; отмена контекста не откатывает уже выполненный HTTP-запрос. Поэтому нужна идемпотентность получателя.
 
-Assignor определяет баланс и affinity: range может создавать перекос между topics, round-robin распределяет шире, sticky сохраняет прежние assignments, cooperative sticky поддерживает incremental transfer. Проверяйте совместимость strategy при rolling change.
+Стабильный `group.instance.id` уменьшает лишние перераспределения при коротком перезапуске. Но идентификаторы должны быть уникальны, а реальный отказ всё равно определяется по сроку ожидания.
 
-Rebalance callback должен:
+## Два протокола группы
 
-- остановить выдачу новой работы для revoked partitions;
-- дождаться/отменить bounded in-flight processing;
-- commit-ить только contiguous успешно обработанный prefix;
-- освободить partition-scoped state.
+В Kafka 4.x есть classic и новый consumer rebalance protocol. В новом протоколе больше решений о назначении и интервалах heartbeat принимает брокер; Java-клиент выбирает его через `group.protocol=consumer`. Перед переходом проверяют поддержку конкретных клиентов, настройки, метрики и постепенное обновление. Настройки classic нельзя переносить автоматически.
 
-Static membership (`group.instance.id`) уменьшает rebalance при кратком restart, но duplicate identity fence-ится, а реальный failure всё равно ждёт timeout.
-
-## Classic и consumer protocol
-
-Kafka 4.x поддерживает classic protocol и новый consumer rebalance protocol. Server support нового protocol включён; Java client выбирает его через `group.protocol=consumer`. В новом protocol assignment logic находится на broker, rebalance incremental, а heartbeat/session settings в большей степени задаёт server. Default клиента и доступные assignors проверяйте для конкретной 4.x версии перед rollout.
-
-Миграция protocol — изменение поведения: обновите clients, metrics, timeouts и проведите rolling test. Не смешивайте рекомендации по classic heartbeat settings с consumer protocol без проверки.
-
-Kafka 4.2 также сделал production-ready share groups: несколько consumers могут обрабатывать records одной partition с individual acknowledgements и delivery attempts. Это отдельная queue-like модель, а не новый assignor обычной consumer group.
+Share groups, готовые для эксплуатации с Kafka 4.2, — отдельная модель: несколько получателей могут обрабатывать записи одной части с индивидуальным подтверждением. Она ближе к очереди и не является новой стратегией обычной группы. Для задачи со строгим порядком её выбирают отдельно.
 
 ## Пример распределения
 
-Topic имеет partitions P0,P1,P2. В группе analytics consumers A и B могут получить A:{P0,P1}, B:{P2}. При добавлении C возможно назначение по одной partition каждому; точное распределение зависит от assignor. Четвёртый участник не добавит parallelism обычной группы.
+Поток состоит из P0, P1, P2. Группа analytics может назначить A части P0 и P1, B — P2. С появлением C возможно по одной каждому; точный результат зависит от стратегии назначения. Четвёртому участнику части не хватит. Вторая группа читает те же части независимо, что и показано на схеме.
 
 ```mermaid
 flowchart LR
-    P0[Partition 0] --> A[Group 1: A]
-    P1[Partition 1] --> A
-    P2[Partition 2] --> B[Group 1: B]
-    P0 --> C[Group 2: C]
+    P0[Часть 0] --> A[Группа 1: A]
+    P1[Часть 1] --> A
+    P2[Часть 2] --> B[Группа 1: B]
+    P0 --> C[Группа 2: C]
     P1 --> C
     P2 --> C
 ```
@@ -53,9 +42,9 @@ bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
   --describe --group analytics
 ```
 
-CURRENT-OFFSET, LOG-END-OFFSET и LAG помогают оценить backlog. Нулевой lag не доказывает завершение внешней операции, если приложение commit сделало раньше.
+`CURRENT-OFFSET` — сохранённая позиция, `LOG-END-OFFSET` — конец журнала, `LAG` — разность. Если приложение сохранило позицию до эффекта, нулевое отставание не доказывает завершения работы.
 
-Classic client heartbeat.interval.ms не переносится механически на group.protocol=consumer: новый протокол получает интервалы heartbeat/session от broker. Static membership уменьшает краткие перестановки, но требует уникальной стабильной identity. Share groups — другая модель с record acknowledgements и несколькими readers partition; обычное правило один owner относится к consumer groups. Для строгого порядка не выбирайте share group автоматически.
+Для нового consumer protocol интервалы контрольных сигналов и сессии задаёт брокер. Не переносите classic-настройку `heartbeat.interval.ms` механически. Стабильный идентификатор уменьшает перестановки, но должен быть уникален. Share groups имеют индивидуальные подтверждения записей и другую модель порядка, чем обычная группа.
 
 ## Источники
 
@@ -64,20 +53,20 @@ Classic client heartbeat.interval.ms не переносится механич�
 
 ## Проверь себя
 
-1. **Что даст 20 consumers для topic из 3 partitions?**
+1. **Что дадут двадцать участников обычной группы для трёх частей?**
 
    <details>
    <summary>Ответ</summary>
 
-   Обычная группа использует максимум три для partition чтения; остальные простаивают.
+   Одновременно читать части смогут максимум трое; остальные простаивают.
 
    </details>
 
-2. **Почему rebalance способен привести к двойному side effect?**
+2. **Почему перераспределение может повторить внешний эффект?**
 
    <details>
    <summary>Ответ</summary>
 
-   Старый worker может продолжить после передачи partition новому; нужна идемпотентность.
+   Старый исполнитель способен закончить после передачи части новому. Эффект должен быть защищён от повтора.
 
    </details>

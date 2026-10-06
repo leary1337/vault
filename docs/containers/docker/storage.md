@@ -1,23 +1,19 @@
 ---
-title: Docker storage
-description: Writable layer, volumes, bind mounts и tmpfs.
+title: "Хранение данных Docker"
+description: "Изменяемый слой принадлежит одному контейнеру и удаляется вместе с ним."
 tags: [containers, docker, storage]
 updated: 2026-10-06
 ---
 
-# Docker storage
+# Хранение данных Docker
 
-Writable layer относится к одному container. Volume переживает его замену, bind mount показывает путь host, tmpfs хранит временные данные в памяти.
+Изменяемый слой принадлежит одному контейнеру и удаляется вместе с ним. **Volume** имеет независимый срок жизни; **bind mount** показывает выбранный путь машины; **tmpfs** хранит временные данные в памяти. Единственную копию важных данных нельзя оставлять в слое контейнера.
 
-Container writable layer исчезает при удалении container и зависит от storage driver. Не храните там единственную копию durable data.
+## Виды подключений
 
-## Mount types
+Docker управляет volume, который может сохраняться при замене контейнера. Bind mount удобен для разработки и настроек, но связывает запуск с путями машины и даёт доступ к её файлам. Tmpfs исчезает при остановке, расходует память и при подкачке может попасть на диск.
 
-- Volume управляется Docker, имеет независимый lifecycle и подходит для persistent application data.
-- Bind mount отображает точный host path; удобен для development/config, но связывает deployment с host layout и даёт доступ к host filesystem.
-- tmpfs хранит данные в host memory/swap, исчезает при stop и подходит transient sensitive/high-I/O state с memory limits.
-
-Mount скрывает image content в target path на время container. UID/GID permissions — numeric Linux identities, а не совпадение username strings.
+Монтирование временно скрывает содержимое образа в выбранном каталоге. Права Linux определяются числовыми UID/GID: одинаковое имя пользователя внутри и снаружи само по себе ничего не гарантирует.
 
 ```bash
 docker volume create pg-data
@@ -25,22 +21,24 @@ docker run --mount type=volume,src=pg-data,dst=/var/lib/app app
 docker run --mount type=bind,src=/srv/config,dst=/etc/app,readonly app
 ```
 
-Volumes не являются backup: corruption/delete сохраняются. Backup должен быть application-consistent (DB snapshot/log protocol), проверяться restore test и храниться вне failure domain host.
-
-Writable-layer heavy writes увеличивают copy-up/CoW overhead и complicate cleanup. Logs направляйте stdout/stderr с bounded logging driver/rotation; unbounded json logs могут заполнить host disk.
-
-Root filesystem `--read-only` плюс explicit writable tmpfs/volume уменьшает mutation surface и выявляет скрытые runtime writes.
-
-## Предел долговечности volume
+## Volume не является резервной копией
 
 ```bash
 docker volume create app-data
 docker run --mount type=volume,src=app-data,dst=/data app-image
 ```
 
-Замена container с тем же volume сохраняет данные. Но отказ диска/host, ошибочное удаление или испорченная запись остаются отказами. Для БД backup должен учитывать transaction/log protocol; копия directory во время записи может быть непригодна для restore.
+Замена контейнера с тем же volume сохраняет данные, в том числе ошибочно удалённые или повреждённые. Отказ диска или машины также остаётся возможен. Резервная копия должна быть отдельно восстановима, храниться вне той же области отказа и проверяться восстановлением.
 
-Bind mount с `readonly` защищает от записи через этот mount, но не от чтения лишнего секрета. Выдавайте минимальный host path, не `/`. tmpfs учитывается в memory, а при swap может оказаться на диске: это не универсальная гарантия «секрет никогда не записан физически». Проверьте memory/swap policy и backup retention.
+Для БД копирование каталога во время записи может дать несогласованный результат. Используйте предусмотренный БД протокол снимка и журнала.
+
+## Практические ограничения
+
+Частая запись в изменяемый слой увеличивает расходы копирования и усложняет очистку. Логи направляйте в stdout/stderr с пределами и ротацией: бесконечный журнал может заполнить диск машины.
+
+Корень только для чтения плюс явно разрешённые tmpfs или volume помогает найти скрытые записи приложения. Bind mount `readonly` запрещает запись через него, но всё ещё позволяет прочитать лишний секрет: выдавайте минимальный путь, а не `/`.
+
+Tmpfs не гарантирует «секрет никогда не попадёт на физический диск»: проверьте подкачку, дампы и политику резервных копий.
 
 ## Источники
 
@@ -49,13 +47,13 @@ Bind mount с `readonly` защищает от записи через этот 
 
 ## Проверь себя
 
-1. Чем volume отличается от backup?
-2. Почему tmpfs влияет на memory limit?
+1. Чем volume отличается от резервной копии?
+2. Почему tmpfs влияет на предел памяти?
 
 <details>
-<summary>Ориентиры для ответа</summary>
+<summary>Ответы</summary>
 
-1. Volume сохраняет текущее состояние, включая повреждение; backup отдельная восстановимая копия.
-2. Его данные занимают память и учитываются соответствующими resource controllers.
+1. Он сохраняет текущее состояние, включая повреждение; копия должна позволять восстановить прежнее.
+2. Его данные занимают память и учитываются соответствующими контроллерами.
 
 </details>

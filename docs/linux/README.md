@@ -1,30 +1,30 @@
 ---
-title: Linux для backend engineer
-description: Processes, memory, networking, cgroups и диагностика Linux.
+title: "Linux для серверного разработчика"
+description: "Linux выполняет программу, предоставляет память и сеть и ограничивает ресурсы."
 tags: [linux, production]
 updated: 2026-10-06
 ---
 
-# Linux для backend engineer
+# Linux для серверного разработчика
 
-Раздел объясняет устройство Linux для диагностики серверных программ: process/thread/syscall, file descriptors и sockets, virtual memory/page cache/RSS, CPU/load average, epoll, signals, cgroup v2 и namespaces.
+Linux выполняет программу, предоставляет память и сеть и ограничивает ресурсы. Здесь объясняются механизмы, которые помогают понять задержки, расход памяти и поведение контейнеров.
 
-Показатели Linux имеют область измерения. Host `free` и container `memory.current`, process RSS и Go heap, CPU utilization и load average отвечают на разные вопросы. Всегда фиксируйте host/container/PID/cgroup, интервал и workload.
+Показатели относятся к разным объектам. RSS описывает страницы процесса в RAM, `memory.current` — учёт всей cgroup, а профиль Go — только часть памяти приложения. CPU занят работой или задача ждёт его: это тоже разные вопросы. В диагностике указывайте процесс или контейнер, интервал и нагрузку.
 
-Основные первичные источники — [Linux man-pages](https://man7.org/linux/man-pages/) и [kernel documentation](https://docs.kernel.org/).
+Источники механизмов — [Linux man-pages](https://man7.org/linux/man-pages/) и [документация ядра](https://docs.kernel.org/).
 
 ## Темы
 
 - [cgroups v2](cgroups.md)
 - [CPU](cpu.md)
 - [epoll](epoll.md)
-- [File descriptors](file-descriptors.md)
-- [Linux debugging workflow](debugging.md)
+- [Файловые дескрипторы](file-descriptors.md)
+- [Диагностика Linux](debugging.md)
 - [Load average](load-average.md)
-- [Memory и page cache](memory.md)
-- [Namespaces](namespaces.md)
-- [Processes и threads](processes-and-threads.md)
-- [Signals](signals.md)
-- [Sockets](sockets.md)
-- [System calls](system-calls.md)
-- [Virtual memory](virtual-memory.md)
+- [Память и файловый кеш](memory.md)
+- [Пространства имён](namespaces.md)
+- [Процессы и потоки](processes-and-threads.md)
+- [Сигналы](signals.md)
+- [Сокеты](sockets.md)
+- [Системные вызовы](system-calls.md)
+- [Виртуальная память](virtual-memory.md)
