@@ -1,6 +1,4 @@
 $schema: https://api.gitbook.com/gitbook-docs.yaml
-version: 1
-
 site:
   title: Backend Knowledge Base
   structure:
@@ -18,7 +16,6 @@ site:
           content:
             directory: ./docs/go
             language: ru
-
     - type: section
       key: section-data-messaging
       title: Данные и обмен сообщениями
@@ -39,7 +36,6 @@ site:
           content:
             directory: ./docs/messaging
             language: ru
-
     - type: section
       key: section-networking
       title: Сети
@@ -53,7 +49,6 @@ site:
           content:
             directory: ./docs/networking
             language: ru
-
     - type: section
       key: section-design-operations
       title: Проектирование и эксплуатация
@@ -102,7 +97,6 @@ site:
           content:
             directory: ./docs/containers
             language: ru
-
     - type: section
       key: section-observability
       title: Наблюдаемость
@@ -116,7 +110,6 @@ site:
           content:
             directory: ./docs/observability
             language: ru
-
     - type: section
       key: section-backend-architecture
       title: Архитектура приложений
@@ -130,7 +123,6 @@ site:
           content:
             directory: ./docs/backend-architecture
             language: ru
-
     - type: section
       key: section-security
       title: Безопасность
@@ -144,7 +136,6 @@ site:
           content:
             directory: ./docs/security
             language: ru
-
     - type: section
       key: section-production
       title: Диагностика сбоев
@@ -158,7 +149,6 @@ site:
           content:
             directory: ./docs/production
             language: ru
-
     - type: section
       key: section-practice
       title: Практика
@@ -172,7 +162,6 @@ site:
           content:
             directory: ./docs/practice
             language: ru
-
     - type: section
       key: section-interviews
       title: Интервью
