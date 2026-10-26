@@ -1,0 +1,15 @@
+# Table of contents
+
+* [Сообщения и события](README.md)
+* [Inbox: защита эффекта от повторов](inbox-pattern.md)
+* [Outbox: сохранение намерения отправить](transactional-outbox.md)
+* [Apache Kafka](kafka/README.md)
+  * [Архитектура Kafka](kafka/architecture.md)
+  * [Группы получателей](kafka/consumer-groups.md)
+  * [Получатель Kafka](kafka/consumer.md)
+  * [Гарантии доставки](kafka/delivery-semantics.md)
+  * [KRaft](kafka/kraft.md)
+  * [Эксплуатация Kafka](kafka/operations.md)
+  * [Отправитель Kafka](kafka/producer.md)
+  * [Потоки, части и копии Kafka](kafka/topics-partitions-replication.md)
+  * [Транзакции Kafka](kafka/transactions.md)
