@@ -2,18 +2,20 @@
 title: Указатель тем интервью
 description: Указатель статей по наблюдаемой проблеме и навыку объяснения на интервью.
 tags: [interviews, avito, skills]
-updated: 2026-10-06
+updated: 2026-10-26
 ---
 
 # Указатель тем интервью
 
 Этот указатель связывает вопросы с тематическими статьями. Он помогает найти объяснение, но не является внутренней системой оценивания Avito.
 
+Список областей уточнён по [сообщению рекрутера и документу для кандидатов](README.md), прочитанным 26 октября 2026. Для скрининга явно указаны ОС и CS; для платформы Go — также тесты, профилирование и память. Детализация учебных вопросов остаётся авторской.
+
 | Секция | Основные разделы | Что демонстрировать |
 |---|---|---|
-| Scoring/screening | [Go](../../go/README.md), [DB](../../databases/README.md), [networking](../../networking/README.md), [distributed systems](../../distributed-systems/README.md) | точное объяснение, условия гарантии и конкретный пример |
+| Скрининг | [Go](../../go/README.md), [СУБД](../../databases/README.md), [сети](../../networking/README.md), [ОС](../../linux/README.md), [CS: алгоритмы и структуры данных](../../algorithms/README.md) | точное объяснение, условия гарантии и конкретный пример; детализация CS в сообщении не раскрыта |
 | Programming | [Algorithms](../../algorithms/README.md) | уточнение задачи, доказательство шагов, код, проверки и сложность |
-| Platform | [Go language](../../go/language/README.md), [concurrency](../../go/concurrency/README.md), [runtime](../../go/runtime/README.md), [backend](../../go/backend/README.md) | чтение кода, владение ресурсами, память, параллельность, ошибки и проверка |
+| Платформа Go | [Язык](../../go/language/README.md), [конкурентность](../../go/concurrency/README.md), [runtime](../../go/runtime/README.md), [тесты](../../go/testing/README.md), [профилирование](../../go/performance/pprof.md), [память](../../go/runtime/memory-management.md) | написание и чтение кода, объяснение поведения, тестирование и проверка гипотез о памяти |
 | System Design | [process](../../system-design/system-design-process.md), [PostgreSQL](../../databases/postgresql/README.md), [Redis](../../databases/redis/README.md), [Kafka](../../messaging/kafka/README.md), [observability](../../observability/README.md) | требования, расчёты, правила данных, ограничения и результат отказов |
 | Final | [incidents](../../production/incident-response.md), [architecture](../../backend-architecture/README.md), [архитектурный пример](../../practice/go-backend-project.md) | личная ответственность, обсуждение решений, измеренный результат и выводы |
 

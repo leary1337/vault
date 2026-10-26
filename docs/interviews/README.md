@@ -2,7 +2,7 @@
 title: Интервью
 description: Навигация по подготовке к backend-интервью без дублирования основной базы.
 tags: [interviews, career, backend]
-updated: 2026-10-06
+updated: 2026-10-26
 ---
 
 # Интервью
@@ -17,6 +17,6 @@ updated: 2026-10-06
 - coding: [Algorithms](../algorithms/README.md);
 - platform: [Linux](../linux/README.md), [networking](../networking/README.md), [databases](../databases/README.md), [production](../production/README.md);
 - architecture: [System Design](../system-design/README.md), [distributed systems](../distributed-systems/README.md), [patterns](../backend-patterns/README.md);
-- конкретная публичная карта этапов: [Avito](avito/README.md).
+- этапы и подготовка по материалам для кандидатов и публичным источникам: [Avito](avito/README.md).
 
 Формат зависит от компании, роли и времени. У рекрутера уточняют актуальные этапы, длительность, язык, редактор, критерии оценки и ожидания по проектированию.
